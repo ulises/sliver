@@ -1,5 +1,5 @@
 (ns erlang-node-simulator.handshake
-  (:require [bytebuffer.buff :refer [take-short take-ubyte]]
+  (:require [bytebuffer.buff :refer [take-short take-ubyte take-uint]]
             [erlang-node-simulator.util :as util])
   (:import [java.nio ByteBuffer]))
 
@@ -17,3 +17,18 @@
   (let [len (dec (take-short payload))]
     (when (= \s (char (take-ubyte payload)))
       (keyword (apply str (map char (repeatedly len #(take-ubyte payload))))))))
+
+(defn recv-challenge
+  [^ByteBuffer payload]
+  (let [len (dec (take-short payload))]
+    (when (= \n (char (take-ubyte payload)))
+      (let [name-len  (- len 10)
+            version   (take-short payload)
+            flag      (take-uint payload)
+            challenge (take-uint payload)]
+        {:version version :flag flag :challenge challenge
+         :name (apply
+                str
+                (map char
+                     (repeatedly name-len
+                                 #(take-ubyte payload))))}))))

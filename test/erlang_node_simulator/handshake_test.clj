@@ -14,12 +14,8 @@
   (testing "recv status ok"
     (is (= :ok (recv-status (h/file->bb "recv_status_ok.bin"))))))
 
-
-
-
-
-
-
-
-
-
+(deftest test-recv-challenge
+  (testing "recv challenge"
+    (is (= {:challenge 0x2ad9d12a :version 0x0005
+            :name "foo@127.0.0.1" :flag 0x00037ffd}
+           (recv-challenge (h/file->bb "recv_challenge.bin"))))))
