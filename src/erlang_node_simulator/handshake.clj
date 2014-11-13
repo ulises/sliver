@@ -32,3 +32,14 @@
                 (map char
                      (repeatedly name-len
                                  #(take-ubyte payload))))}))))
+
+(defn send-challenge-reply
+  [challenge cookie]
+  (let [tag           (byte \r)
+        new-challenge (util/gen-challenge)
+        digest        (util/digest challenge cookie)
+        payload-len   21]
+    (util/flip-pack (+ 2 payload-len) ;; 2 bytes for message size
+                    (str "sbi" (apply str (repeat 16 "b")))
+                    (concat [payload-len tag new-challenge]
+                            digest))))

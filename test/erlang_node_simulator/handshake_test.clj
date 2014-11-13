@@ -19,3 +19,9 @@
     (is (= {:challenge 0x2ad9d12a :version 0x0005
             :name "foo@127.0.0.1" :flag 0x00037ffd}
            (recv-challenge (h/file->bb "recv_challenge.bin"))))))
+
+(deftest test-send-challenge-reply
+  (testing "send challenge reply"
+    (with-redefs [clojure.core/rand-int (fn [n] 0xa5c072f1)]
+      (h/bb-is-= (send-challenge-reply 0x2ad9d12a "ZQHEBZYTXKIPJNBSCYEN")
+                 (h/file->bb "send_challenge.bin")))))
