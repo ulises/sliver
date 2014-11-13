@@ -25,3 +25,27 @@
     (with-redefs [clojure.core/rand-int (fn [n] 0xa5c072f1)]
       (h/bb-is-= (send-challenge-reply 0x2ad9d12a "ZQHEBZYTXKIPJNBSCYEN")
                  (h/file->bb "send_challenge.bin")))))
+
+(deftest test-recv-challenge-ack
+  (testing "recv challenge ack - accepted"
+    (is (= :ok
+           (recv-challenge-ack 0xa5c072f1 "ZQHEBZYTXKIPJNBSCYEN"
+                               (h/file->bb "recv_challenge_ack.bin")))))
+
+  (testing "recv challenge ack - wrong cookie"
+    (is (not (recv-challenge-ack 0xa5c072f1 "monster"
+                                 (h/file->bb "recv_challenge_ack.bin")))))
+
+  (testing "recv challenge ack - wrong challenge"
+    (is (not (recv-challenge-ack 0 "ZQHEBZYTXKIPJNBSCYEN"
+                                 (h/file->bb "recv_challenge_ack.bin"))))))
+
+
+
+
+
+
+
+
+
+

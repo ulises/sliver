@@ -43,3 +43,14 @@
                     (str "sbi" (apply str (repeat 16 "b")))
                     (concat [payload-len tag new-challenge]
                             digest))))
+
+(defn recv-challenge-ack
+  [challenge ^String cookie ^ByteBuffer payload]
+  (let [a-challenge (map (fn [n] (bit-and n 0xff))
+                         (util/digest challenge cookie))
+        len (take-short payload)
+        tag (char (take-ubyte payload))]
+    (when (= \a tag)
+      (let [b-challenge (repeatedly 16 #(take-ubyte payload))]
+        (if (= a-challenge b-challenge)
+          :ok)))))
