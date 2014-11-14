@@ -7,7 +7,7 @@
 
 (deftest test-read-packet
   (testing "reads a packet"
-    (is (= (read-packet (ByteBuffer/wrap (byte-array [0 3 1 2 3])))
+    (is (= (packet (ByteBuffer/wrap (byte-array [0 3 1 2 3])))
            (ByteBuffer/wrap (byte-array [1 2 3]))))))
 
 
@@ -19,7 +19,7 @@
 (deftest test-recv-status-ok
   (testing "recv status ok"
     (is (= :ok (recv-status
-                (read-packet
+                (packet
                  (h/file->bb "recv_status_ok.bin")))))))
 
 (deftest test-recv-challenge
@@ -47,13 +47,3 @@
   (testing "recv challenge ack - wrong challenge"
     (is (not (recv-challenge-ack 0 "ZQHEBZYTXKIPJNBSCYEN"
                                  (h/file->bb "recv_challenge_ack.bin"))))))
-
-
-
-
-
-
-
-
-
-

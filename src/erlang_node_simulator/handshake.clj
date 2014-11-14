@@ -54,7 +54,7 @@
         (if (= a-challenge b-challenge)
           :ok)))))
 
-(defn read-packet
+(defn packet
   [^ByteBuffer payload]
   (let [len (take-short payload)]
     (slice-off payload len)))
