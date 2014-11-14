@@ -31,8 +31,10 @@
 (deftest test-send-challenge-reply
   (testing "send challenge reply"
     (with-redefs [clojure.core/rand-int (fn [n] 0xa5c072f1)]
-      (is (= (send-challenge-reply 0x2ad9d12a "ZQHEBZYTXKIPJNBSCYEN")
-             (h/file->bb "send_challenge.bin"))))))
+      (let [a-challenge (send-challenge-reply 0x2ad9d12a "ZQHEBZYTXKIPJNBSCYEN")]
+        (is (= (:payload a-challenge)
+               (h/file->bb "send_challenge.bin")))
+        (is (= (:challenge a-challenge) 0xa5c072f1))))))
 
 (deftest test-recv-challenge-ack
   (testing "recv challenge ack - accepted"

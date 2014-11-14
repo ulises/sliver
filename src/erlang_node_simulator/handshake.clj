@@ -32,25 +32,25 @@
                                #(take-ubyte payload))))})))
 
 (defn send-challenge-reply
-  [challenge cookie]
-  (let [tag           (byte \r)
-        new-challenge (util/gen-challenge)
-        digest        (util/digest challenge cookie)
-        payload-len   21]
-    (util/flip-pack (+ 2 payload-len) ;; 2 bytes for message size
-                    (str "sbi" (apply str (repeat 16 "b")))
-                    (concat [payload-len tag new-challenge]
-                            digest))))
+  [b-challenge cookie]
+  (let [tag         (byte \r)
+        a-challenge (util/gen-challenge)
+        digest      (util/digest b-challenge cookie)
+        payload-len 21]
+    {:challenge a-challenge
+     :payload (util/flip-pack (+ 2 payload-len) ;; 2 bytes for message size
+                              (str "sbi" (apply str (repeat 16 "b")))
+                              (concat [payload-len tag a-challenge]
+                                      digest))}))
 
 (defn recv-challenge-ack
   [challenge ^String cookie ^ByteBuffer payload]
-  (let [a-challenge (map (fn [n] (bit-and n 0xff))
-                         (util/digest challenge cookie))
-        tag (char (take-ubyte payload))]
-    (when (= \a tag)
-      (let [b-challenge (repeatedly 16 #(take-ubyte payload))]
-        (if (= a-challenge b-challenge)
-          :ok)))))
+  (when (= \a (char (take-ubyte payload)))
+    (let [a-challenge (map (fn [n] (bit-and n 0xff))
+                           (util/digest challenge cookie))
+          b-challenge (repeatedly 16 #(take-ubyte payload))]
+      (if (= a-challenge b-challenge)
+        :ok))))
 
 (defn packet
   [^ByteBuffer payload]
