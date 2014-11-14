@@ -1,5 +1,5 @@
 (ns erlang-node-simulator.handshake
-  (:require [bytebuffer.buff :refer [take-short take-ubyte take-uint]]
+  (:require [bytebuffer.buff :refer [take-short take-ubyte take-uint slice-off]]
             [erlang-node-simulator.util :as util])
   (:import [java.nio ByteBuffer]))
 
@@ -54,3 +54,8 @@
       (let [b-challenge (repeatedly 16 #(take-ubyte payload))]
         (if (= a-challenge b-challenge)
           :ok)))))
+
+(defn read-packet
+  [^ByteBuffer payload]
+  (let [len (take-short payload)]
+    (slice-off payload len)))

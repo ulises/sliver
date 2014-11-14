@@ -5,6 +5,12 @@
             [erlang-node-simulator.test-helpers :as h])
   (:import [java.nio ByteBuffer]))
 
+(deftest test-read-packet
+  (testing "reads a packet"
+    (is (= (read-packet (ByteBuffer/wrap (byte-array [0 3 1 2 3])))
+           (ByteBuffer/wrap (byte-array [1 2 3]))))))
+
+
 (deftest test-send-name
   (testing "send-name"
     (h/bb-is-= (send-name "bar@127.0.0.1")
