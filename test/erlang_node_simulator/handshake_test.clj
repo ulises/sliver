@@ -13,8 +13,8 @@
 
 (deftest test-send-name
   (testing "send-name"
-    (h/bb-is-= (send-name "bar@127.0.0.1")
-               (h/file->bb "send_name.bin"))))
+    (is (= (send-name "bar@127.0.0.1")
+           (h/file->bb "send_name.bin")))))
 
 (deftest test-recv-status-ok
   (testing "recv status ok"
@@ -31,8 +31,8 @@
 (deftest test-send-challenge-reply
   (testing "send challenge reply"
     (with-redefs [clojure.core/rand-int (fn [n] 0xa5c072f1)]
-      (h/bb-is-= (send-challenge-reply 0x2ad9d12a "ZQHEBZYTXKIPJNBSCYEN")
-                 (h/file->bb "send_challenge.bin")))))
+      (is (= (send-challenge-reply 0x2ad9d12a "ZQHEBZYTXKIPJNBSCYEN")
+             (h/file->bb "send_challenge.bin"))))))
 
 (deftest test-recv-challenge-ack
   (testing "recv challenge ack - accepted"

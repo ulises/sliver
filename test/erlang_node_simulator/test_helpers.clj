@@ -8,8 +8,3 @@
         buffer (byte-array (.length file))]
     (.read (io/input-stream file) buffer)
     (ByteBuffer/wrap buffer)))
-
-(defn bb-is-=
-  [^ByteBuffer expected ^ByteBuffer actual]
-  (is (= (map identity (.array expected))
-         (map identity (.array actual)))))
