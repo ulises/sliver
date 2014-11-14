@@ -26,7 +26,7 @@
   (testing "recv challenge"
     (is (= {:challenge 0x2ad9d12a :version 0x0005
             :name "foo@127.0.0.1" :flag 0x00037ffd}
-           (recv-challenge (h/file->bb "recv_challenge.bin"))))))
+           (recv-challenge (packet (h/file->bb "recv_challenge.bin")))))))
 
 (deftest test-send-challenge-reply
   (testing "send challenge reply"
@@ -38,12 +38,15 @@
   (testing "recv challenge ack - accepted"
     (is (= :ok
            (recv-challenge-ack 0xa5c072f1 "ZQHEBZYTXKIPJNBSCYEN"
-                               (h/file->bb "recv_challenge_ack.bin")))))
+                               (packet
+                                (h/file->bb "recv_challenge_ack.bin"))))))
 
   (testing "recv challenge ack - wrong cookie"
     (is (not (recv-challenge-ack 0xa5c072f1 "monster"
-                                 (h/file->bb "recv_challenge_ack.bin")))))
+                                 (packet
+                                  (h/file->bb "recv_challenge_ack.bin"))))))
 
   (testing "recv challenge ack - wrong challenge"
     (is (not (recv-challenge-ack 0 "ZQHEBZYTXKIPJNBSCYEN"
-                                 (h/file->bb "recv_challenge_ack.bin"))))))
+                                 (packet
+                                  (h/file->bb "recv_challenge_ack.bin")))))))

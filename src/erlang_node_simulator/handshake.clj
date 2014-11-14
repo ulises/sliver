@@ -19,18 +19,17 @@
 
 (defn recv-challenge
   [^ByteBuffer payload]
-  (let [len (dec (take-short payload))]
-    (when (= \n (char (take-ubyte payload)))
-      (let [name-len  (- len 10)
-            version   (take-short payload)
-            flag      (take-uint payload)
-            challenge (take-uint payload)]
-        {:version version :flag flag :challenge challenge
-         :name (apply
-                str
-                (map char
-                     (repeatedly name-len
-                                 #(take-ubyte payload))))}))))
+  (when (= \n (char (take-ubyte payload)))
+    (let [name-len  (- (.remaining payload) 10)
+          version   (take-short payload)
+          flag      (take-uint payload)
+          challenge (take-uint payload)]
+      {:version version :flag flag :challenge challenge
+       :name (apply
+              str
+              (map char
+                   (repeatedly name-len
+                               #(take-ubyte payload))))})))
 
 (defn send-challenge-reply
   [challenge cookie]
@@ -47,7 +46,6 @@
   [challenge ^String cookie ^ByteBuffer payload]
   (let [a-challenge (map (fn [n] (bit-and n 0xff))
                          (util/digest challenge cookie))
-        len (take-short payload)
         tag (char (take-ubyte payload))]
     (when (= \a tag)
       (let [b-challenge (repeatedly 16 #(take-ubyte payload))]
