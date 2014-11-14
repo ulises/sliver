@@ -13,10 +13,9 @@
 
 (defn recv-status
   [^ByteBuffer payload]
-  ;; packet size - 1 byte for the tag = length of the status
-  (let [len (dec (take-short payload))]
-    (when (= \s (char (take-ubyte payload)))
-      (keyword (apply str (map char (repeatedly len #(take-ubyte payload))))))))
+  (when (= \s (char (take-ubyte payload)))
+    (keyword (apply str (map char (repeatedly (.remaining payload)
+                                              #(take-ubyte payload)))))))
 
 (defn recv-challenge
   [^ByteBuffer payload]
