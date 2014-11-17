@@ -17,11 +17,6 @@
       (timbre/info "DECODED: " decoded))
     decoded))
 
-(defprotocol NodeP
-  "A simple protocol for Erlang nodes."
-  (connect [node other-node]
-    "Connects to an Erlang node."))
-
 (defn- send-name [connection name]
   (tcp/send-bytes connection (h/send-name name)))
 
@@ -40,6 +35,11 @@
 (defn- check-challenge-ack [connection challenge cookie]
   (read-handshake-packet connection
                          (partial h/recv-challenge-ack challenge cookie)))
+
+(defprotocol NodeP
+  "A simple protocol for Erlang nodes."
+  (connect [node other-node]
+    "Connects to an Erlang node."))
 
 (defrecord Node [name cookie connections]
   NodeP
