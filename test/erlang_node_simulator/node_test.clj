@@ -27,7 +27,7 @@
 
   (f)
 
-  (killall "erl")
+  (killall "beam.smp")
   (epmd "-kill"))
 
 (use-fixtures :each epmd-erl-fixture)
