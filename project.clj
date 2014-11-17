@@ -5,6 +5,6 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.6.0"]
                  [bytebuffer "0.2.0"]
-                 [aleph "0.3.3"]]
+                 [com.taoensso/timbre "3.3.1"]]
 
   :global-vars {*warn-on-reflection* true})
