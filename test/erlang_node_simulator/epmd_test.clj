@@ -19,3 +19,7 @@
     (is (= 9999 (h/epmd-port "foo"))))
 
   (h/epmd "-kill"))
+
+(deftest test-port2-req
+  (is (= (h/file->bb "epmd_port2_req.bin")
+         (port2-req "foo"))))

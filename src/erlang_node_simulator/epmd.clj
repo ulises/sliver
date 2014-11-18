@@ -20,3 +20,8 @@
 (defn register [conn name port]
   (tcp/send-bytes conn (alive2-req name port))
   (alive2-resp (tcp/read-handshake-packet conn)))
+
+(defn port2-req [^String name]
+  (let [len (count name)]
+    (util/flip-pack (+ 3 len) (str "sb" (apply str (repeat len "b")))
+                    (concat [(inc len) 122] (.getBytes name)))))
