@@ -33,5 +33,6 @@
       (take-ushort packet))))
 
 (defn port [conn name]
-  (tcp/send-bytes conn (port2-req name))
-  (port2-resp (tcp/read-handshake-packet conn)))
+  (when name
+    (tcp/send-bytes conn (port2-req name))
+    (port2-resp (tcp/read-handshake-packet conn))))
