@@ -1,5 +1,5 @@
 (ns erlang-node-simulator.epmd
-  (:require [bytebuffer.buff :refer [take-ubyte]]
+  (:require [bytebuffer.buff :refer [take-ubyte take-ushort]]
             [erlang-node-simulator.tcp :as tcp]
             [erlang-node-simulator.util :as util]))
 
@@ -25,3 +25,13 @@
   (let [len (count name)]
     (util/flip-pack (+ 3 len) (str "sb" (apply str (repeat len "b")))
                     (concat [(inc len) 122] (.getBytes name)))))
+
+(defn port2-resp
+  [packet]
+  (when (= 119 (take-ubyte packet))
+    (when-let [result (take-ubyte packet)]
+      (take-ushort packet))))
+
+(defn port [conn name]
+  (tcp/send-bytes conn (port2-req name))
+  (port2-resp (tcp/read-handshake-packet conn)))
