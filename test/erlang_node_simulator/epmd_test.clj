@@ -13,8 +13,9 @@
 
 (deftest test-full-registration
   (h/epmd "-daemon" "-relaxed_command_check")
+  (Thread/sleep 1000)
 
-  (let [conn (tcp/client "localhost" 4369)]
+  (with-open [conn (tcp/client "localhost" 4369)]
     (is (= :ok (register conn "foo" 9999)))
     (is (= 9999 (h/epmd-port "foo"))))
 
