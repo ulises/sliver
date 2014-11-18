@@ -1,7 +1,7 @@
-(ns erlang-node-simulator.node-test
+(ns sliver.node-test
   (:require [clojure.test :refer :all]
-            [erlang-node-simulator.node :refer :all]
-            [erlang-node-simulator.test-helpers :as h]))
+            [sliver.node :refer :all]
+            [sliver.test-helpers :as h]))
 
 (defn- epmd-erl-fixture [f]
   (h/epmd "-daemon" "-relaxed_command_check")
@@ -29,7 +29,7 @@
 
 (deftest test-node-prefer-host-config-connect
   (testing "prefer config over name/epmd info"
-    (with-redefs [erlang-node-simulator.epmd/port (fn [& _] -1)]
+    (with-redefs [sliver.epmd/port (fn [& _] -1)]
       (let [node (node "bar@127.0.0.1" "monster")]
         (is (= :ok (connect node {:name "foo"
                                   :host "localhost"

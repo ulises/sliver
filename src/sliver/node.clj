@@ -1,9 +1,9 @@
-(ns erlang-node-simulator.node
+(ns sliver.node
   (:require [bytebuffer.buff :refer [take-ubyte]]
             [clojure.pprint :refer [pprint]]
-            [erlang-node-simulator.epmd :as epmd]
-            [erlang-node-simulator.handshake :as h]
-            [erlang-node-simulator.tcp :as tcp]
+            [sliver.epmd :as epmd]
+            [sliver.handshake :as h]
+            [sliver.tcp :as tcp]
             [taoensso.timbre :as timbre])
   (:import [java.nio.channels SocketChannel]))
 

@@ -1,4 +1,4 @@
-(ns erlang-node-simulator.tcp
+(ns sliver.tcp
   (:require [bytebuffer.buff :refer [byte-buffer take-short]])
   (:import [java.net InetSocketAddress]
            [java.nio ByteBuffer]

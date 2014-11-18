@@ -1,8 +1,8 @@
-(ns erlang-node-simulator.handshake-test
+(ns sliver.handshake-test
   (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
-            [erlang-node-simulator.handshake :refer :all]
-            [erlang-node-simulator.test-helpers :as h])
+            [sliver.handshake :refer :all]
+            [sliver.test-helpers :as h])
   (:import [java.nio ByteBuffer]))
 
 (deftest test-read-packet

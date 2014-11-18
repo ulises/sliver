@@ -1,6 +1,6 @@
-(ns erlang-node-simulator.handshake
+(ns sliver.handshake
   (:require [bytebuffer.buff :refer [take-short take-ubyte take-uint slice-off]]
-            [erlang-node-simulator.util :as util])
+            [sliver.util :as util])
   (:import [java.nio ByteBuffer]))
 
 (defn send-name [^String name]

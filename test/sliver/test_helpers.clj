@@ -1,4 +1,4 @@
-(ns erlang-node-simulator.test-helpers
+(ns sliver.test-helpers
   (:require [bytebuffer.buff :refer [take-ubyte]]
             [clojure.java.io :as io]
             [clojure.java.shell :refer [sh]]

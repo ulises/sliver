@@ -1,4 +1,4 @@
-(ns erlang-node-simulator.util
+(ns sliver.util
   (:require [bytebuffer.buff :refer [pack byte-buffer]])
   (:import [java.nio ByteBuffer]
            [java.security MessageDigest]))

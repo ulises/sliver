@@ -1,7 +1,7 @@
-(ns erlang-node-simulator.epmd
+(ns sliver.epmd
   (:require [bytebuffer.buff :refer [take-ubyte take-ushort]]
-            [erlang-node-simulator.tcp :as tcp]
-            [erlang-node-simulator.util :as util]))
+            [sliver.tcp :as tcp]
+            [sliver.util :as util]))
 
 (defn alive2-req
   [^String name port]

@@ -1,8 +1,8 @@
-(ns erlang-node-simulator.epmd-test
+(ns sliver.epmd-test
   (:require [clojure.test :refer :all]
-            [erlang-node-simulator.epmd :refer :all]
-            [erlang-node-simulator.tcp :as tcp]
-            [erlang-node-simulator.test-helpers :as h]))
+            [sliver.epmd :refer :all]
+            [sliver.tcp :as tcp]
+            [sliver.test-helpers :as h]))
 
 (deftest test-alive2-req
   (is (= (h/file->bb "epmd_alive2_req.bin")
