@@ -1,6 +1,7 @@
 (ns erlang-node-simulator.node
   (:require [bytebuffer.buff :refer [take-ubyte]]
             [clojure.pprint :refer [pprint]]
+            [erlang-node-simulator.epmd :as epmd]
             [erlang-node-simulator.handshake :as h]
             [erlang-node-simulator.tcp :as tcp]
             [taoensso.timbre :as timbre])
@@ -44,11 +45,16 @@
 (defrecord Node [name cookie connections]
   NodeP
   (connect [{:keys [name cookie] :as node}
-            {:keys [host port] :as other-node}]
-    (let [connection (tcp/client host port)]
+            {:keys [host port] :or {host "localhost"}
+             :as other-node}]
+    (let [port       (or port
+                         (with-open [^SocketChannel epmd-conn
+                                     (tcp/client "localhost" 4369)]
+                           (epmd/port epmd-conn (:name other-node))))
+          connection (tcp/client host port)]
       (send-name connection name)
-      (recv-status connection) ; should check status is ok, but not
-                               ; just now
+      (recv-status connection)          ; should check status is ok, but not
+                                        ; just now
       (let [b-challenge (recv-challenge connection)
             a-challenge (gen-challenge b-challenge cookie)
             _           (send-challenge connection a-challenge)
