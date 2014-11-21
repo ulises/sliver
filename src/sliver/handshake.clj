@@ -1,9 +1,11 @@
 (ns sliver.handshake
   (:require [bytebuffer.buff :refer [take-short take-ubyte take-uint slice-off]]
-            [sliver.util :as util])
+            [sliver.tcp :as tcp]
+            [sliver.util :as util]
+            [taoensso.timbre :as timbre])
   (:import [java.nio ByteBuffer]))
 
-(defn send-name [^String name]
+(defn send-name-packet [^String name]
   (let [bytes (concat [(byte \n) 0 5 0 3 0x7f 0xfd]
                       (.getBytes name))
         len   (count bytes)]
@@ -11,13 +13,13 @@
                     (str "s" (apply str (repeat len "b")))
                     (concat [len] bytes))))
 
-(defn recv-status
+(defn recv-status-packet
   [^ByteBuffer payload]
   (when (= \s (char (take-ubyte payload)))
     (keyword (apply str (map char (repeatedly (.remaining payload)
                                               #(take-ubyte payload)))))))
 
-(defn recv-challenge
+(defn recv-challenge-packet
   [^ByteBuffer payload]
   (when (= \n (char (take-ubyte payload)))
     (let [name-len  (- (.remaining payload) 10)
@@ -31,7 +33,7 @@
                    (repeatedly name-len
                                #(take-ubyte payload))))})))
 
-(defn send-challenge-reply
+(defn send-challenge-reply-packet
   [b-challenge cookie]
   (let [tag         (byte \r)
         a-challenge (util/gen-challenge)
@@ -43,7 +45,7 @@
                               (concat [payload-len tag a-challenge]
                                       digest))}))
 
-(defn recv-challenge-ack
+(defn recv-challenge-ack-packet
   [challenge ^String cookie ^ByteBuffer payload]
   (when (= \a (char (take-ubyte payload)))
     (let [a-challenge (map (fn [n] (bit-and n 0xff))
@@ -56,3 +58,34 @@
   [^ByteBuffer payload]
   (let [len (take-short payload)]
     (slice-off payload len)))
+
+(defn- read-handshake-packet
+  [conn handler & debug]
+  (let [raw-packet (tcp/read-handshake-packet conn)
+        hs-packet  (packet raw-packet)
+        decoded    (handler hs-packet)]
+    (when debug
+      (timbre/info "PACKET:" packet)
+      (timbre/info "HS-PACKET:" hs-packet)
+      (timbre/info "DECODED: " decoded))
+    decoded))
+
+(defn send-name [connection name]
+  (tcp/send-bytes connection (send-name-packet name)))
+
+(defn recv-status [connection]
+  (read-handshake-packet connection recv-status-packet))
+
+(defn recv-challenge [connection]
+  (read-handshake-packet connection recv-challenge-packet))
+
+(defn gen-challenge [b-challenge cookie]
+  (send-challenge-reply-packet (:challenge b-challenge) cookie))
+
+(defn send-challenge [connection {:keys [payload] :as challenge}]
+  (tcp/send-bytes connection payload))
+
+(defn check-challenge-ack [connection challenge cookie]
+  (read-handshake-packet connection
+                         (partial recv-challenge-ack-packet
+                                  challenge cookie)))

@@ -7,36 +7,6 @@
             [taoensso.timbre :as timbre])
   (:import [java.nio.channels SocketChannel]))
 
-(defn- read-handshake-packet
-  [conn handler & debug]
-  (let [packet    (tcp/read-handshake-packet conn)
-        hs-packet (h/packet packet)
-        decoded   (handler hs-packet)]
-    (when debug
-      (timbre/info "PACKET:" packet)
-      (timbre/info "HS-PACKET:" hs-packet)
-      (timbre/info "DECODED: " decoded))
-    decoded))
-
-(defn- send-name [connection name]
-  (tcp/send-bytes connection (h/send-name name)))
-
-(defn- recv-status [connection]
-  (read-handshake-packet connection h/recv-status))
-
-(defn- recv-challenge [connection]
-  (read-handshake-packet connection h/recv-challenge))
-
-(defn- gen-challenge [b-challenge cookie]
-  (h/send-challenge-reply (:challenge b-challenge) cookie))
-
-(defn- send-challenge [connection {:keys [payload] :as challenge}]
-  (tcp/send-bytes connection payload))
-
-(defn- check-challenge-ack [connection challenge cookie]
-  (read-handshake-packet connection
-                         (partial h/recv-challenge-ack challenge cookie)))
-
 (defprotocol NodeP
   "A simple protocol for Erlang nodes."
   (connect [node other-node]
@@ -52,15 +22,15 @@
                                      (tcp/client "localhost" 4369)]
                            (epmd/port epmd-conn (:name other-node))))
           connection (tcp/client host port)]
-      (send-name connection name)
-      (recv-status connection)          ; should check status is ok, but not
-                                        ; just now
-      (let [b-challenge (recv-challenge connection)
-            a-challenge (gen-challenge b-challenge cookie)
-            _           (send-challenge connection a-challenge)
-            ack         (check-challenge-ack connection
-                                             (:challenge a-challenge)
-                                             cookie)]
+      (h/send-name connection name)
+      (h/recv-status connection)        ; should check status is ok,
+                                        ; but not just now
+      (let [b-challenge (h/recv-challenge connection)
+            a-challenge (h/gen-challenge b-challenge cookie)
+            _           (h/send-challenge connection a-challenge)
+            ack         (h/check-challenge-ack connection
+                                               (:challenge a-challenge)
+                                               cookie)]
         (if (= :ok ack)
           (swap! (:connections node)
                  assoc other-node connection))
