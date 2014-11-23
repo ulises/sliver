@@ -7,7 +7,7 @@
 
 (deftest test-read-packet
   (testing "reads a packet"
-    (is (= (packet (ByteBuffer/wrap (byte-array [0 3 1 2 3])))
+    (is (= (handshake-packet (ByteBuffer/wrap (byte-array [0 3 1 2 3])))
            (ByteBuffer/wrap (byte-array [1 2 3]))))))
 
 
@@ -19,7 +19,7 @@
 (deftest test-recv-status-ok
   (testing "recv status ok"
     (is (= :ok (recv-status-packet
-                (packet
+                (handshake-packet
                  (h/file->bb "recv_status_ok.bin")))))))
 
 (deftest test-recv-challenge
@@ -27,7 +27,7 @@
     (is (= {:challenge 0x2ad9d12a :version 0x0005
             :name "foo@127.0.0.1" :flag 0x00037ffd}
            (recv-challenge-packet
-            (packet (h/file->bb "recv_challenge.bin")))))))
+            (handshake-packet (h/file->bb "recv_challenge.bin")))))))
 
 (deftest test-send-challenge-reply
   (testing "send challenge reply"
@@ -43,16 +43,16 @@
     (is (= :ok
            (recv-challenge-ack-packet
             0xa5c072f1 "ZQHEBZYTXKIPJNBSCYEN"
-            (packet (h/file->bb "recv_challenge_ack.bin"))))))
+            (handshake-packet (h/file->bb "recv_challenge_ack.bin"))))))
 
   (testing "recv challenge ack - wrong cookie"
     (is (not (recv-challenge-ack-packet
               0xa5c072f1 "monster"
-              (packet
+              (handshake-packet
                (h/file->bb "recv_challenge_ack.bin"))))))
 
   (testing "recv challenge ack - wrong challenge"
     (is (not (recv-challenge-ack-packet
               0 "ZQHEBZYTXKIPJNBSCYEN"
-              (packet
+              (handshake-packet
                (h/file->bb "recv_challenge_ack.bin")))))))

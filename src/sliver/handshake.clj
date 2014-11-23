@@ -54,7 +54,7 @@
       (if (= a-challenge b-challenge)
         :ok))))
 
-(defn packet
+(defn handshake-packet
   [^ByteBuffer payload]
   (let [len (take-short payload)]
     (slice-off payload len)))
@@ -62,10 +62,10 @@
 (defn- read-handshake-packet
   [conn handler & debug]
   (let [raw-packet (tcp/read-handshake-packet conn)
-        hs-packet  (packet raw-packet)
+        hs-packet  (handshake-packet raw-packet)
         decoded    (handler hs-packet)]
     (when debug
-      (timbre/info "PACKET:" packet)
+      (timbre/info "PACKET:" raw-packet)
       (timbre/info "HS-PACKET:" hs-packet)
       (timbre/info "DECODED: " decoded))
     decoded))
