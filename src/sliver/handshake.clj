@@ -65,7 +65,7 @@
     (slice-off payload len)))
 
 (defn- read-handshake-packet
-  [conn handler & debug]
+  [conn handler]
   (let [raw-packet (tcp/read-handshake-packet conn)
         hs-packet  (handshake-packet raw-packet)
         decoded    (handler hs-packet)]
