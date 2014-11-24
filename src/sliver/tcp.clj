@@ -1,5 +1,5 @@
 (ns sliver.tcp
-  (:require [bytebuffer.buff :refer [byte-buffer take-short]])
+  (:require [bytebuffer.buff :refer [byte-buffer take-short take-int]])
   (:import [java.net InetSocketAddress]
            [java.nio ByteBuffer]
            [java.nio.channels SocketChannel]))
@@ -22,5 +22,11 @@
 (defn read-handshake-packet [^SocketChannel client]
   (let [^ByteBuffer size (read-bytes client 2)
         len  (take-short size)]
+    (.rewind size)
+    (concat-buffers size (read-bytes client len))))
+
+(defn read-connected-packet [^SocketChannel client]
+  (let [^ByteBuffer size (read-bytes client 4)
+        len  (take-int size)]
     (.rewind size)
     (concat-buffers size (read-bytes client len))))
