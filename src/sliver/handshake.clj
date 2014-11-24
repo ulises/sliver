@@ -5,12 +5,17 @@
             [taoensso.timbre :as timbre])
   (:import [java.nio ByteBuffer]))
 
-(defn send-name-packet [^String name]
-  (let [bytes (concat [(byte \n) 0 5 0 3 0x7f 0xfd]
+;; as seen in https://github.com/erlang/otp/blob/maint/lib/kernel/include/dist.hrl
+(defonce ^:const dflag-published 1)
+(defonce ^:const dflag-extended-references 4)
+(defonce ^:const dflag-extended-pid-ports 0x100)
+
+(defn send-name-packet [^String name & flags]
+  (let [bytes (concat [(byte \n) 0 5 (apply bit-or flags)]
                       (.getBytes name))
-        len   (count bytes)]
+        len   (+ 7 (count name))]
     (util/flip-pack (+ 2 len)
-                    (str "s" (apply str (repeat len "b")))
+                    (str "sbbbi" (apply str (repeat (count name) "b")))
                     (concat [len] bytes))))
 
 (defn recv-status-packet
@@ -64,14 +69,16 @@
   (let [raw-packet (tcp/read-handshake-packet conn)
         hs-packet  (handshake-packet raw-packet)
         decoded    (handler hs-packet)]
-    (when debug
-      (timbre/info "PACKET:" raw-packet)
-      (timbre/info "HS-PACKET:" hs-packet)
-      (timbre/info "DECODED: " decoded))
+    (timbre/info "PACKET:" raw-packet)
+    (timbre/info "HS-PACKET:" hs-packet)
+    (timbre/info "DECODED: " decoded)
     decoded))
 
 (defn send-name [connection name]
-  (tcp/send-bytes connection (send-name-packet name)))
+  (tcp/send-bytes connection (send-name-packet name
+                                               dflag-published
+                                               dflag-extended-pid-ports
+                                               dflag-extended-references)))
 
 (defn recv-status [connection]
   (read-handshake-packet connection recv-status-packet))

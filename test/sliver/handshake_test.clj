@@ -13,7 +13,7 @@
 
 (deftest test-send-name
   (testing "send-name"
-    (is (= (send-name-packet "bar@127.0.0.1")
+    (is (= (send-name-packet "bar@127.0.0.1" 0xfd 0x7f00 0x30000)
            (h/file->bb "send_name.bin")))))
 
 (deftest test-recv-status-ok
