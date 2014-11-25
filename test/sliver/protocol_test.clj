@@ -1,7 +1,9 @@
 (ns sliver.protocol-test
-  (:require [bytebuffer.buff :refer [take-uint]]
+  (:require [borges.type :refer [pid]]
+            [bytebuffer.buff :refer [take-uint]]
             [clojure.test :refer :all]
-            [sliver.protocol :refer :all])
+            [sliver.protocol :refer :all]
+            [sliver.test-helpers :refer [bytes-seq]])
   (:import [java.nio ByteBuffer]))
 
 (defonce raw-bytes (ByteBuffer/wrap
@@ -17,3 +19,12 @@
                                             101 120 105 115 116 131 100 0 2 104
                                             105)))
          (read-pass-through-packet raw-bytes))))
+
+(deftest test-write-pass-through-packet
+  (is (= raw-bytes
+         (pass-through-message [(int 6)
+                                (borges.type/pid (symbol "foo@127.0.0.1")
+                                                 38 0 3)
+                                (symbol "")
+                                'noexist]
+                               'hi))))
