@@ -30,7 +30,7 @@
   (stop [{:keys [state] :as node}]
     (dorun
      (for [n (keys @state)]
-       (do (println "Closing:" n)
+       (do (timbre/debug "Closing:" n)
            (.close ^SocketChannel (:connection n)))))
     node))
 
