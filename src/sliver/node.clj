@@ -10,7 +10,9 @@
 (defprotocol NodeP
   "A simple protocol for Erlang nodes."
   (connect [node other-node]
-    "Connects to an Erlang node."))
+    "Connects to an Erlang node.")
+  (stop [node]
+    "Stops node. Closes all connections, etc."))
 
 (defrecord Node [name cookie state]
   NodeP
@@ -23,7 +25,14 @@
             (future
               (p/do-loop connection
                          (fn handler [raw-packet])))))
-      node)))
+      node))
+
+  (stop [{:keys [state] :as node}]
+    (dorun
+     (for [n (keys @state)]
+       (do (println "Closing:" n)
+           (.close ^SocketChannel (:connection n)))))
+    node))
 
 (defn node [name cookie]
   (Node. name cookie (atom {})))
