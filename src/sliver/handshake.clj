@@ -76,7 +76,6 @@
 
 (defn send-name [connection name]
   (tcp/send-bytes connection (send-name-packet name
-                                               dflag-published
                                                dflag-extended-pid-ports
                                                dflag-extended-references)))
 
