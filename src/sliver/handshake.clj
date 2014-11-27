@@ -1,9 +1,11 @@
 (ns sliver.handshake
   (:require [bytebuffer.buff :refer [take-short take-ubyte take-uint slice-off]]
+            [sliver.epmd :as epmd ]
             [sliver.tcp :as tcp]
             [sliver.util :as util]
             [taoensso.timbre :as timbre])
-  (:import [java.nio ByteBuffer]))
+  (:import [java.nio ByteBuffer]
+           [java.nio.channels SocketChannel]))
 
 ;; as seen in https://github.com/erlang/otp/blob/maint/lib/kernel/include/dist.hrl
 (defonce ^:const dflag-published 1)
@@ -95,3 +97,23 @@
   (read-handshake-packet connection
                          (partial recv-challenge-ack-packet
                                   challenge cookie)))
+
+(defn shake-hands
+  [{:keys [name cookie] :as node}
+   {:keys [host port] :or {host "localhost"}
+    :as other-node}]
+  (let [port       (or port
+                       (with-open [^SocketChannel epmd-conn
+                                   (tcp/client "localhost" 4369)]
+                         (epmd/port epmd-conn (:name other-node))))
+        connection (tcp/client host port)]
+    (send-name connection name)
+    (recv-status connection)        ; should check status is ok,
+                                        ; but not just now
+    (let [b-challenge (recv-challenge connection)
+          a-challenge (gen-challenge b-challenge cookie)
+          _           (send-challenge connection a-challenge)
+          ack         (check-challenge-ack connection
+                                           (:challenge a-challenge)
+                                           cookie)]
+      [ack connection])))
