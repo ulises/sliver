@@ -11,7 +11,10 @@
     "Connects to an Erlang node.")
 
   (stop [node]
-    "Stops node. Closes all connections, etc."))
+    "Stops node. Closes all connections, etc.")
+
+  (send-message [node pid-or-name message]
+    "Sends a message to the process pid@host."))
 
 (defrecord Node [node-name cookie state]
   NodeP
@@ -33,7 +36,16 @@
      (for [{:keys [connection]} (vals @state)]
        (do (timbre/debug "Closing:" connection)
            (.close ^SocketChannel connection))))
-    node))
+    node)
+
+  (send-message [node pid message]
+    (let [other-node-name (second (re-find #"(\w+)@" (name (:node pid))))
+          connection (get-in @state [{:node-name other-node-name} :connection])]
+      (if connection
+        (p/send-message connection pid message)
+        (timbre/info
+         (format "Couldn't find connection for %s - %s"
+                 other-node-name @state))))))
 
 (defn node [name cookie]
   (Node. name cookie (atom {})))

@@ -40,3 +40,11 @@
         header (util/flip-pack 5 "ib" [(inc (.remaining ^ByteBuffer payload))
                                        112])]
     (tcp/concat-buffers header payload)))
+
+(defn send-message
+  [^SocketChannel connection pid message]
+  (timbre/info
+   (format "Sent %s bytes"
+           (tcp/send-bytes connection
+                           (pass-through-message [2 (symbol "") pid]
+                                                 message)))))
