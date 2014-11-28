@@ -7,7 +7,9 @@
 
 (defprotocol NodeP
   "A simple protocol for Erlang nodes."
-  (connect [node other-node]
+  (connect
+    [node other-node]
+    [node other-node handlers]
     "Connects to an Erlang node.")
 
   (stop [node]
@@ -18,7 +20,8 @@
 
 (defrecord Node [node-name cookie state]
   NodeP
-  (connect [node other-node]
+  (connect [node other-node] (connect node other-node nil))
+  (connect [node other-node handlers]
     (let [[ack connection] (h/shake-hands node other-node)]
       (if (= :ok ack)
         (do (swap! state update-in [other-node] assoc :connection connection)
@@ -26,9 +29,10 @@
               (p/do-loop connection
                          (fn handler [[control message]]
                            (let [[tag from cookie to] control]
-                             (timbre/info
-                              (format "From: %s, To: %s, %s"
-                                      from to message))))))))
+                             (when handlers
+                               (dorun
+                                (for [handler handlers]
+                                  (handler node from to message))))))))))
       node))
 
   (stop [{:keys [state] :as node}]
