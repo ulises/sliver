@@ -1,9 +1,7 @@
 (ns sliver.node
   (:require [bytebuffer.buff :refer [take-ubyte]]
-            [clojure.pprint :refer [pprint]]
-            [sliver.epmd :as epmd]
             [sliver.handshake :as h]
-            [sliver.tcp :as tcp]
+            [sliver.protocol :as p]
             [taoensso.timbre :as timbre])
   (:import [java.nio.channels SocketChannel]))
 
