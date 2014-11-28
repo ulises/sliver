@@ -1,5 +1,6 @@
 (ns sliver.protocol
-  (:require [borges.encoder :refer [encode]]
+  (:require [borges.decoder :refer [decode]]
+            [borges.encoder :refer [encode]]
             [bytebuffer.buff :refer [take-ubyte take-uint]]
             [sliver.tcp :as tcp]
             [sliver.util :as util]
@@ -25,7 +26,10 @@
     (if (tick? packet) (do (timbre/info :tock)
                            (tcp/send-bytes conn tock)
                            (.rewind tock))
-        (handler-fn packet))
+        (let [pt-packet (read-pass-through-packet packet)
+              control   (decode pt-packet)
+              message   (decode pt-packet)]
+          (handler-fn [control message])))
     (recur conn handler-fn)))
 
 (defn pass-through-message

@@ -24,7 +24,11 @@
         (do (swap! state update-in [other-node] assoc :connection connection)
             (future
               (p/do-loop connection
-                         (fn handler [raw-packet])))))
+                         (fn handler [[control message]]
+                           (let [[tag from cookie to] control]
+                             (timbre/info
+                              (format "From: %s, To: %s, %s"
+                                      from to message))))))))
       node))
 
   (stop [{:keys [state] :as node}]
