@@ -9,14 +9,13 @@
   "A simple protocol for Erlang nodes."
   (connect [node other-node]
     "Connects to an Erlang node.")
+
   (stop [node]
     "Stops node. Closes all connections, etc."))
 
-(defrecord Node [name cookie state]
+(defrecord Node [node-name cookie state]
   NodeP
-  (connect [{:keys [name cookie] :as node}
-            {:keys [host port] :or {host "localhost"}
-             :as other-node}]
+  (connect [node other-node]
     (let [[ack connection] (h/shake-hands node other-node)]
       (if (= :ok ack)
         (do (swap! state update-in [other-node] assoc :connection connection)
@@ -31,9 +30,9 @@
 
   (stop [{:keys [state] :as node}]
     (dorun
-     (for [n (keys @state)]
-       (do (timbre/debug "Closing:" n)
-           (.close ^SocketChannel (:connection n)))))
+     (for [{:keys [connection]} (vals @state)]
+       (do (timbre/debug "Closing:" connection)
+           (.close ^SocketChannel connection))))
     node))
 
 (defn node [name cookie]

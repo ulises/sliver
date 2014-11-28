@@ -99,15 +99,15 @@
                                   challenge cookie)))
 
 (defn shake-hands
-  [{:keys [name cookie] :as node}
+  [{:keys [node-name cookie] :as node}
    {:keys [host port] :or {host "localhost"}
     :as other-node}]
   (let [port       (or port
                        (with-open [^SocketChannel epmd-conn
                                    (tcp/client "localhost" 4369)]
-                         (epmd/port epmd-conn (:name other-node))))
+                         (epmd/port epmd-conn (:node-name other-node))))
         connection (tcp/client host port)]
-    (send-name connection name)
+    (send-name connection node-name)
     (recv-status connection)        ; should check status is ok,
                                         ; but not just now
     (let [b-challenge (recv-challenge connection)

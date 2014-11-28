@@ -25,12 +25,12 @@
 (deftest test-node-name-connect
   (testing "connect using node name"
     (let [node (node "bar@127.0.0.1" "monster")]
-      (is @(:state (connect node {:name "foo"}))))))
+      (is @(:state (connect node {:node-name "foo"}))))))
 
 (deftest test-node-prefer-host-config-connect
   (testing "prefer config over name/epmd info"
     (with-redefs [sliver.epmd/port (fn [& _] -1)]
       (let [node (node "bar@127.0.0.1" "monster")]
-        (is @(:state (connect node {:name "foo"
+        (is @(:state (connect node {:node-name "foo"
                                     :host "localhost"
                                     :port (h/epmd-port "foo")})))))))
