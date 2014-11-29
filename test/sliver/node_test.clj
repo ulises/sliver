@@ -6,6 +6,7 @@
 (defn- epmd-erl-fixture [f]
   (h/epmd "-daemon" "-relaxed_command_check")
   (h/erl "foo@127.0.0.1" "monster")
+  (h/erl "foo2@127.0.0.1" "monster")
 
   (Thread/sleep 1000)
 
@@ -34,3 +35,20 @@
         (is @(:state (connect node {:node-name "foo"
                                     :host "localhost"
                                     :port (h/epmd-port "foo")})))))))
+
+(deftest test-node-connects-to-multiple-erlang-nodes
+  (testing "connect using node name"
+    (let [node (node "bar@127.0.0.1" "monster")]
+      (connect node {:node-name "foo"})
+      (connect node {:node-name "foo2"})
+      (is (= '({:node-name "foo2"} {:node-name "foo"})
+             (keys @(:state node)))))))
+
+(deftest test-multiple-nodes-can-coexist
+  (testing "connecting from several nodes to same erlang node"
+    (let [node1  (node "bar@127.0.0.1" "monster")
+          node2 (node "baz@127.0.0.1" "monster")]
+      (connect node1 {:node-name "foo"})
+      (connect node2 {:node-name "foo"})
+      (is (= '({:node-name "foo"}) (keys @(:state node1))))
+      (is (= '({:node-name "foo"}) (keys @(:state node2)))))))
