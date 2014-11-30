@@ -35,7 +35,7 @@
                                   (handler node from to message))))))))))
       node))
 
-  (stop [{:keys [state] :as node}]
+  (stop [node]
     (dorun
      (for [{:keys [connection]} (vals @state)]
        (do (timbre/debug "Closing:" connection)
