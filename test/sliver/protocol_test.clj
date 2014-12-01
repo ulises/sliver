@@ -28,3 +28,10 @@
                                 (symbol "")
                                 'noexist]
                                'hi))))
+
+(deftest test-parse-control
+  (let [a-pid  (pid (symbol "foo@127.0.0.1") 38 0 0)
+        b-pid  (pid (symbol "bar@127.0.0.1") 42 1 3)
+        cookie (symbol "monster")]
+    (is (= [nil a-pid] (parse-control [2 cookie a-pid])))
+    (is (= [a-pid b-pid] (parse-control [6 a-pid cookie b-pid])))))

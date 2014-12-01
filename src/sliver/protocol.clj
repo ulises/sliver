@@ -48,3 +48,17 @@
            (tcp/send-bytes connection
                            (pass-through-message [2 (symbol "") pid]
                                                  message)))))
+
+(defn send-reg-message
+  [^SocketChannel connection from-pid to message]
+  (timbre/info
+   (format "Sent %s bytes"
+           (tcp/send-bytes connection
+                           (pass-through-message [6 from-pid (symbol "") to]
+                                                 message)))))
+
+(defn parse-control
+  [control]
+  (condp = (first control)
+    2 [nil (last control)]
+    6 [(second control) (last control)]))
