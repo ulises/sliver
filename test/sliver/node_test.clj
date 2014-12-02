@@ -52,3 +52,15 @@
       (connect node2 {:node-name "foo"})
       (is (= '({:node-name "foo"}) (keys @(:state node1))))
       (is (= '({:node-name "foo"}) (keys @(:state node2)))))))
+
+(deftest test-pid-minting
+  (testing "creating a new pid increments the pid count"
+    (let [node (node "bar@127.0.0.1" "monster")]
+      (is (< (:pid (pid node)) (:pid (pid node))))))
+
+  (testing "creating too many pids rolls pid counter over"
+    (let [node (node "bar@127.0.0.1" "monster")]
+      (let [a-pid (pid node)]
+        (doseq [_ (range 0xfffff)]
+          (pid node))
+        (is (< (:serial a-pid) (:serial (pid node))))))))
