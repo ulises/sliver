@@ -7,6 +7,7 @@
 
 (defprotocol NodeP
   "A simple protocol for Erlang nodes."
+
   (connect
     [node other-node]
     [node other-node handlers]
@@ -17,6 +18,7 @@
 
   (send-message [node pid message]
     "Sends a message to the process pid@host.")
+
   (send-registered-message [node from-pid process-name other-node message]
     "Sends a registered message to the process process-name@other-node."))
 
