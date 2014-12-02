@@ -29,3 +29,8 @@
 
 (defn killall [name]
   (sh "killall" name))
+
+(defn escript [script]
+  (.start (ProcessBuilder. [script]))
+  ;; give the erlang vm a chance to boot
+  (Thread/sleep 1000))
