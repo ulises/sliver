@@ -11,7 +11,6 @@
 
   (connect
     [node other-node]
-    [node other-node handlers]
     "Connects to an Erlang node.")
 
   (stop [node]
