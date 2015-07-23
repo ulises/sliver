@@ -1,0 +1,37 @@
+* node
+** TODO multi-threaded recv of messages
+run each handler in a separate thread (use threadpools, etc.) Maybe
+use netty, or aleph, or whatever. Actually, does it even make sense to have more
+than one handler?
+EDIT: not sure it makes sense. When the thread is busy processing a
+message, any new incomind messages will wait un the socket buffer. Though this
+is likely to be a problem if the rate is high. One thread per handler is fine.
+The question is whether we should have more than one handler per node?
+** TODO better socket handling
+for instance, if a thing throws an exception, the tick/tock thread dies?
+if a native node closes the socket we never hear about it?
+** TODO stop retrying after N attempts to automatically connect
+   also exponential backoff?
+** TODO listen to incoming connections
+maybe won't do? I think it should do. Try to reply when a native node goes: net:ping(us).
+** TODO handle :active connections
+   i.e. when we try to connect to a node and there's already a socket open with a handshake ongoing
+** TODO better handle node-names, i.e. handle both -sname and -name
+** TODO create refs
+** TODO implement LINK
+** TODO implement EXIT
+** TODO implement UNLINK
+** TODO implement NODE_LINK
+** TODO implement EXIT2
+** DONE connect on demand
+** DONE create pids
+** DONE implement REG_SEND: send messages to registered processes
+* misc
+** TODO come up with a better story for logging
+e.g. set logging level somewhere, then log everywhere.
+Using timbre though, would that be enough?
+
+# Local Variables:
+# mode: org
+# coding: utf-8
+# End:
