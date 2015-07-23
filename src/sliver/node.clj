@@ -55,7 +55,7 @@
           connection      (get-in @state [other-node :connection])]
       (if connection
         (p/send-message connection pid message)
-        (do (timbre/info
+        (do (timbre/debug
              (format "Couldn't find connection for %s. Connecting..."
                      other-node-name))
             ;; if the connection fails, this is will go into a crazy
@@ -68,7 +68,7 @@
     (let [connection (get-in @state [other-node :connection])]
       (if connection
         (p/send-reg-message connection from to message)
-        (do (timbre/info
+        (do (timbre/debug
              (format "Couldn't find connection for %s. Connecting..."
                      other-node))
             ;; if the connection fails, this is will go into a crazy

@@ -71,9 +71,9 @@
   (let [raw-packet (tcp/read-handshake-packet conn)
         hs-packet  (handshake-packet raw-packet)
         decoded    (handler hs-packet)]
-    (timbre/info "PACKET:" raw-packet)
-    (timbre/info "HS-PACKET:" hs-packet)
-    (timbre/info "DECODED: " decoded)
+    (timbre/debug "PACKET:" raw-packet)
+    (timbre/debug "HS-PACKET:" hs-packet)
+    (timbre/debug "DECODED: " decoded)
     decoded))
 
 (defn send-name [connection name]

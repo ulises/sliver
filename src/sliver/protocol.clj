@@ -23,7 +23,7 @@
 
 (defn do-loop [^SocketChannel conn handler-fn]
   (let [packet (tcp/read-connected-packet conn)]
-    (if (tick? packet) (do (timbre/info :tock)
+    (if (tick? packet) (do (timbre/debug :tock)
                            (tcp/send-bytes conn tock)
                            (.rewind tock))
         (let [pt-packet (read-pass-through-packet packet)
@@ -43,7 +43,7 @@
 
 (defn send-message
   [^SocketChannel connection pid message]
-  (timbre/info
+  (timbre/debug
    (format "Sent %s bytes"
            (tcp/send-bytes connection
                            (pass-through-message [2 (symbol "") pid]
@@ -51,7 +51,7 @@
 
 (defn send-reg-message
   [^SocketChannel connection from-pid to message]
-  (timbre/info
+  (timbre/debug
    (format "Sent %s bytes"
            (tcp/send-bytes connection
                            (pass-through-message [6 from-pid (symbol "") to]
