@@ -20,7 +20,7 @@
     (n/send-registered-message node pid 'echo other-node
                                [pid message])
 
-    (is (= @message-received message))))
+    (is (= (deref message-received 100 'fail) message))))
 
 (deftest test-on-demand-ping-pong
   (let [message-received (promise)
@@ -33,4 +33,4 @@
     (n/send-registered-message node pid 'echo other-node
                                [pid message])
 
-    (is (= @message-received message))))
+    (is (= (deref message-received 100 'fail) message))))
