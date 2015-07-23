@@ -1,2 +1,6 @@
-sudo: false
+sudo: required
 language: clojure
+
+before_install:
+- sudo apt-get update
+- sudo apt-get install erlang
