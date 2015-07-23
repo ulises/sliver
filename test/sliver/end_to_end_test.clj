@@ -13,7 +13,7 @@
         _                (h/escript "resources/echo-server.escript")
         other-node       {:node-name "foo"}
         node             (n/connect (n/node "bar@127.0.0.1" "monster"
-                                            (handler message-received))
+                                            [(handler message-received)])
                                     other-node)
         pid              (n/pid node)
         message          'ohai2u]
@@ -27,7 +27,7 @@
         _                (h/escript "resources/echo-server.escript")
         other-node       {:node-name "foo"}
         node             (n/node "bar@127.0.0.1" "monster"
-                                 (handler message-received))
+                                 [(handler message-received)])
         pid              (n/pid node)
         message          'ohai2u]
     (n/send-registered-message node pid 'echo other-node
