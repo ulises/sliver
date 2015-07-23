@@ -95,6 +95,6 @@
          (alter pid-tracker assoc :pid next-pid :serial next-serial)
          new-pid)))))
 
-(defn node [name cookie & handlers]
+(defn node [name cookie handlers]
   (Node. name cookie handlers (atom {})
          (ref {:pid 0 :serial 0 :creation 0})))
