@@ -2,5 +2,5 @@ sudo: false
 language: clojure
 
 before_install:
-- sudo apt-get update
-- sudo apt-get install erlang
+- apt-get update
+- apt-get install erlang
