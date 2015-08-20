@@ -13,9 +13,11 @@ if a native node closes the socket we never hear about it?
 ** TODO stop retrying after N attempts to automatically connect
    also exponential backoff?
 ** TODO listen to incoming connections
-maybe won't do? I think it should do. Try to reply when a native node goes: net:ping(us).
+maybe won't do? I think it should do. Try to reply when a native node goes:
+net:ping(us).
 ** TODO handle :active connections
-   i.e. when we try to connect to a node and there's already a socket open with a handshake ongoing
+   i.e. when we try to connect to a node and there's already a socket open with
+   a handshake ongoing
 ** TODO better handle node-names, i.e. handle both -sname and -name
 ** TODO create refs
 ** TODO implement LINK
@@ -23,6 +25,7 @@ maybe won't do? I think it should do. Try to reply when a native node goes: net:
 ** TODO implement UNLINK
 ** TODO implement NODE_LINK
 ** TODO implement EXIT2
+** TODO investigate registering of processes in the erlang remote process registry
 ** DONE connect on demand
 ** DONE create pids
 ** DONE implement REG_SEND: send messages to registered processes
