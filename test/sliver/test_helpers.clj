@@ -18,7 +18,8 @@
   (future (sh "erl" "-name" name "-setcookie" cookie "-noshell")))
 
 (defn epmd [& args]
-  (apply sh (conj args "epmd")))
+  (apply sh (conj args "epmd"))
+  (Thread/sleep 100))
 
 (defn epmd-port [name]
   (let [o          (:out (sh "epmd" "-names"))

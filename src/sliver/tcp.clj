@@ -2,11 +2,17 @@
   (:require [bytebuffer.buff :refer [byte-buffer take-short take-int]])
   (:import [java.net InetSocketAddress]
            [java.nio ByteBuffer]
-           [java.nio.channels SocketChannel]))
+           [java.nio.channels SocketChannel ServerSocketChannel]))
 
 (defn client [^String host ^Integer port]
   (let [address (InetSocketAddress. host port)]
     (SocketChannel/open address)))
+
+(defn server [^String address ^Integer port]
+  (let [socket-channel (ServerSocketChannel/open)
+        inet-address   (InetSocketAddress. address port)]
+    (.bind (.socket socket-channel) inet-address)
+    socket-channel))
 
 (defn send-bytes [^SocketChannel client ^ByteBuffer bytes]
   (.write client bytes))

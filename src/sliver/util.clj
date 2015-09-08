@@ -20,3 +20,7 @@
   [challenge cookie]
   (let [dig (md5 (str cookie (String/valueOf challenge)))]
     (take 16 dig)))
+
+(defn plain-name [fqdn]
+  "Strips the @IP/host part of a node name"
+  (first (clojure.string/split fqdn #"@")))

@@ -3,6 +3,11 @@
             [sliver.tcp :as tcp]
             [sliver.util :as util]))
 
+(def PORT 4369)
+
+(defn client []
+  (tcp/client "localhost" PORT))
+
 (defn alive2-req
   [^String name port]
   (let [name-len   (count name)
@@ -19,7 +24,8 @@
 
 (defn register [conn name port]
   (tcp/send-bytes conn (alive2-req name port))
-  (alive2-resp (tcp/read-handshake-packet conn)))
+  {:status (alive2-resp (tcp/read-handshake-packet conn))
+   :connection conn})
 
 (defn port2-req [^String name]
   (let [len (count name)]

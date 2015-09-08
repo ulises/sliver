@@ -21,12 +21,14 @@
   (testing "connect using host network details"
     (let [node (node "bar@127.0.0.1" "monster" [])]
       (is @(:state (connect node {:host "127.0.0.1"
-                                  :port (h/epmd-port "foo")}))))))
+                                  :port (h/epmd-port "foo")})))
+      (stop node))))
 
 (deftest test-node-name-connect
   (testing "connect using node name"
     (let [node (node "bar@127.0.0.1" "monster" [])]
-      (is @(:state (connect node {:node-name "foo"}))))))
+      (is @(:state (connect node {:node-name "foo"})))
+      (stop node))))
 
 (deftest test-node-prefer-host-config-connect
   (testing "prefer config over name/epmd info"
@@ -34,7 +36,8 @@
       (let [node (node "bar@127.0.0.1" "monster" [])]
         (is @(:state (connect node {:node-name "foo"
                                     :host "localhost"
-                                    :port (h/epmd-port "foo")})))))))
+                                    :port (h/epmd-port "foo")})))
+        (stop node)))))
 
 (deftest test-node-connects-to-multiple-erlang-nodes
   (testing "connect using node name"
@@ -42,25 +45,32 @@
       (connect node {:node-name "foo"})
       (connect node {:node-name "foo2"})
       (is (= '({:node-name "foo2"} {:node-name "foo"})
-             (keys @(:state node)))))))
+             (keys @(:state node))))
+      (stop node))))
 
 (deftest test-multiple-nodes-can-coexist
   (testing "connecting from several nodes to same erlang node"
-    (let [node1  (node "bar@127.0.0.1" "monster" [])
+    (let [node1 (node "bar@127.0.0.1" "monster" [])
           node2 (node "baz@127.0.0.1" "monster" [])]
       (connect node1 {:node-name "foo"})
       (connect node2 {:node-name "foo"})
-      (is (= '({:node-name "foo"}) (keys @(:state node1))))
-      (is (= '({:node-name "foo"}) (keys @(:state node2)))))))
+      (is (= '({:node-name "foo"})
+             (keys @(:state node1))))
+      (is (= '({:node-name "foo"})
+             (keys @(:state node2))))
+      (stop node1)
+      (stop node2))))
 
 (deftest test-pid-minting
   (testing "creating a new pid increments the pid count"
     (let [node (node "bar@127.0.0.1" "monster" [])]
-      (is (< (:pid (pid node)) (:pid (pid node))))))
+      (is (< (:pid (pid node)) (:pid (pid node))))
+      (stop node)))
 
   (testing "creating too many pids rolls pid counter over"
     (let [node (node "bar@127.0.0.1" "monster" [])]
       (let [a-pid (pid node)]
         (doseq [_ (range 0xfffff)]
           (pid node))
-        (is (< (:serial a-pid) (:serial (pid node))))))))
+        (is (< (:serial a-pid) (:serial (pid node))))
+        (stop node)))))
