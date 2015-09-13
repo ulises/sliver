@@ -15,8 +15,8 @@
   (h/epmd "-daemon" "-relaxed_command_check")
   (Thread/sleep 1000)
 
-  (with-open [conn (tcp/client "localhost" 4369)]
-    (is (= :ok (register conn "foo" 9999)))
+  (with-open [conn (client)]
+    (is (= :ok (:status (register conn "foo" 9999))))
     (is (= 9999 (h/epmd-port "foo"))))
 
   (h/epmd "-kill"))
@@ -35,7 +35,7 @@
 
     (Thread/sleep 1000)
 
-    (with-open [conn (tcp/client "localhost" 4369)]
+    (with-open [conn (client)]
       (is (= (h/epmd-port "foo") (port conn "foo"))))
 
     (h/killall "beam.smp")
@@ -46,9 +46,21 @@
 
     (Thread/sleep 1000)
 
-    (with-open [register-conn (tcp/client "localhost" 4369)
-                query-conn    (tcp/client "localhost" 4369)]
+    (with-open [register-conn (client)
+                query-conn    (client)]
       (register register-conn "foo" 9999)
       (is (= 9999 (port query-conn "foo"))))
 
+    (h/epmd "-kill")))
+
+(deftest test-closing-connection-unregisters
+  (h/epmd "-daemon" "-relaxed_command_check")
+  (let [epmd-client  (client)
+        _            (register epmd-client "foobar" 9999)]
+    (is (= 9999 (port (client) "foobar")))
+
+    ;; unregister
+    (.close epmd-client)
+
+    (is (zero? (port (client) "foobar")))
     (h/epmd "-kill")))

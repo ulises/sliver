@@ -54,7 +54,8 @@
   (timbre/debug
    (format "Sent %s bytes"
            (tcp/send-bytes connection
-                           (pass-through-message [6 from-pid (symbol "") to]
+                           (pass-through-message [6 from-pid (symbol "monster")
+                                                  to]
                                                  message)))))
 
 (defn parse-control
