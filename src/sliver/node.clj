@@ -42,8 +42,8 @@ running) and starts listening for incoming connections.")
 (defrecord Node [node-name cookie handlers state pid-tracker]
   NodeP
   (connect [node other-node]
-    (let [[ack connection] (h/do-handshake node other-node)]
-      (if (= :ok ack)
+    (let [{:keys [status connection]} (h/do-handshake node other-node)]
+      (if (= :ok status)
         (do (save-connection node other-node connection)
             (handle-connection node connection)))
       node))

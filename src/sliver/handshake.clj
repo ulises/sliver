@@ -40,8 +40,14 @@
                                               #(take-ubyte payload)))))))
 
 (defn send-status-packet
-  []
-  (util/flip-pack 5 (str "sbbb") [3 (byte \s) (byte \o) (byte \k)]))
+  [status]
+  (let [status-str (name status)
+        status-len (count status-str)
+        len        (inc status-len)
+        bytes      (concat [len (byte \s)] (.getBytes status-str))]
+    (util/flip-pack (+ 2 len)
+                    (apply str "sb" (repeat status-len "b"))
+                    bytes)))
 
 (defn recv-challenge-packet
   [^ByteBuffer payload]
@@ -122,8 +128,8 @@
 (defn recv-name [connection]
   (read-handshake-packet connection receive-name-packet))
 
-(defn send-status [connection]
-  (tcp/send-bytes connection (send-status-packet)))
+(defn send-status [connection status]
+  (tcp/send-bytes connection (send-status-packet status)))
 
 (defn recv-status [connection]
   (read-handshake-packet connection recv-status-packet))
@@ -158,20 +164,29 @@
     :as other-node}]
   (let [port       (or port
                        (with-open [^SocketChannel epmd-conn
-                                   (tcp/client "localhost" 4369)]
+                                   (epmd/client)]
                          (epmd/port epmd-conn (util/plain-name
                                                (:node-name other-node)))))
         connection (tcp/client host port)]
     (send-name connection node-name)
-    (recv-status connection)        ; should check status is ok,
-                                        ; but not just now
-    (let [b-challenge (recv-challenge connection)
-          a-challenge (gen-challenge-reply b-challenge cookie)
-          _           (send-challenge-reply connection a-challenge)
-          ack         (check-challenge-ack connection
-                                           (:challenge a-challenge)
-                                           cookie)]
-      [ack connection])))
+    (let [status (recv-status connection)]
+      (cond
+        (= :ok status) (let [b-challenge (recv-challenge connection)
+                             a-challenge (gen-challenge-reply b-challenge
+                                                              cookie)
+                             _           (send-challenge-reply connection
+                                                               a-challenge)
+                             ack         (check-challenge-ack connection
+                                                              (:challenge a-challenge)
+                                                              cookie)]
+                         {:status ack :connection connection})
+        (= :alive status) (do (send-status connection :false)
+                              (.close connection)
+                              {:status :alive :connection nil})
+        :else (do (.close connection)
+                  (timbre/debug "Failed handshake. Status:" status
+                                "This is a bug. Please file a ticket.")
+                  {:status :other :connection nil})))))
 
 ;; this is for handling an incoming connection from a node
 (defn handle-handshake
@@ -181,19 +196,27 @@
         b-challenge (util/gen-challenge)
         result      {:other-node a-name :connection connection}]
     (timbre/debug "Connection from:" a-name)
-    (send-status connection)
-    (timbre/debug "Sent status :ok")
-    (send-challenge connection node-name b-challenge)
-    (timbre/debug "Sent challenge: " b-challenge)
-    (let [{:keys [digest challenge]} (recv-challenge-reply connection)
-          digest-matches?           (= digest
-                                       (util/digest b-challenge cookie))]
-      (timbre/debug "Challenge reply received")
-      (timbre/debug "Digest matches: " digest-matches?)
-      (if digest-matches?
-        (do (send-challenge-ack connection challenge cookie)
-            (timbre/debug "Sent challenge ack. Handhsake complete.")
-            (assoc result :status :ok))
-        (do (timbre/debug "Digest didn't match. Closing connection.")
-            (.close connection)
-            (assoc result :status :error))))))
+    (if (get @(:state node) a-name)
+      (do (timbre/debug "Connection for" a-name "is alive.")
+          (send-status connection :alive)
+          ;; here one should check for true/false in case the other node
+          ;; wants to reset the connection. For now we keep the old one, even
+          ;; if it's stale/broken.
+          (.close connection)
+          {:status :alive :connection nil})
+      (do (send-status connection :ok)
+          (timbre/debug "Sent status :ok")
+          (send-challenge connection node-name b-challenge)
+          (timbre/debug "Sent challenge: " b-challenge)
+          (let [{:keys [digest challenge]} (recv-challenge-reply connection)
+                digest-matches?           (= digest
+                                             (util/digest b-challenge cookie))]
+            (timbre/debug "Challenge reply received")
+            (timbre/debug "Digest matches: " digest-matches?)
+            (if digest-matches?
+              (do (send-challenge-ack connection challenge cookie)
+                  (timbre/debug "Sent challenge ack. Handhsake complete.")
+                  (assoc result :status :ok))
+              (do (timbre/debug "Digest didn't match. Closing connection.")
+                  (.close connection)
+                  (assoc result :status :error))))))))
