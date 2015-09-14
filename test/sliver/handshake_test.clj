@@ -2,7 +2,9 @@
   (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
             [sliver.handshake :refer :all]
-            [sliver.test-helpers :as h])
+            [sliver.node :as n]
+            [sliver.test-helpers :as h]
+            [taoensso.timbre :as timbre])
   (:import [java.nio ByteBuffer]))
 
 (deftest test-read-packet
@@ -28,14 +30,14 @@
                 (handshake-packet
                  (h/file->bb "recv_status_ok.bin")))))))
 
-(deftest test-send-status-ok
+(deftest test-send-status
   (testing "send status ok"
-    (is (= (send-status-packet)
+    (is (= (send-status-packet :ok)
            (h/file->bb "recv_status_ok.bin"))))
 
   (testing "can recv status from send-status-packet"
-    (is (= :ok (recv-status-packet (handshake-packet
-                                    (send-status-packet)))))))
+    (is (= :random (recv-status-packet (handshake-packet
+                                        (send-status-packet :random)))))))
 
 (deftest test-recv-challenge
   (testing "recv challenge"
@@ -93,3 +95,77 @@
               0 "ZQHEBZYTXKIPJNBSCYEN"
               (handshake-packet
                (h/file->bb "recv_challenge_ack.bin")))))))
+
+(deftest native-handshake-test
+  (testing "successful handshake"
+    (h/epmd "-daemon" "-relaxed_command_check")
+    (let [cookie   "monster"
+          node     {:node-name "foo@127.0.0.1" :cookie cookie}
+          bar-node {:node-name "bar@127.0.0.1" :cookie cookie}]
+
+      (h/erl "bar@127.0.0.1" cookie)
+
+      (Thread/sleep 5000)
+
+      ;; connect nodes
+      (is (= :ok (:status (do-handshake node bar-node))))
+
+      (h/killall "beam.smp")
+      (h/epmd "-kill")))
+
+  (testing "alive handshake"
+    (h/epmd "-daemon" "-relaxed_command_check")
+    (let [cookie   "monster"
+          node     {:node-name "foo@127.0.0.1" :cookie cookie}
+          bar-node {:node-name "bar@127.0.0.1" :cookie cookie}]
+
+      (h/erl "bar@127.0.0.1" cookie)
+
+      (Thread/sleep 5000)
+
+      ;; connect nodes
+      (is (= :ok (:status (do-handshake node bar-node))))
+
+      ;; the old connection is live, this should not return a new connected
+      ;; socket.
+      (is (= {:status :alive :connection nil}
+             (do-handshake node bar-node)))
+
+      (h/killall "beam.smp")
+      (h/epmd "-kill"))))
+
+(deftest sliver-handshake-test
+  (testing "successful handshake"
+    (h/epmd "-daemon" "-relaxed_command_check")
+    (let [cookie   "monster"
+          node     (n/node "foo@127.0.0.1" cookie [])
+          bar-node {:node-name "bar@127.0.0.1" :cookie cookie}]
+
+      (n/start node)
+
+      ;; connect nodes
+      (is (= :ok (:status (do-handshake bar-node node))))
+
+      (n/stop node)
+      (h/epmd "-kill")))
+
+  (testing "alive handshake"
+    (h/epmd "-daemon" "-relaxed_command_check")
+    (let [cookie   "monster"
+          node     (n/node "foo@127.0.0.1" cookie [])
+          bar-node {:node-name "bar@127.0.0.1" :cookie cookie}]
+
+      (n/start node)
+
+      ;; connect nodes
+      (timbre/debug "First connection")
+      (is (= :ok (:status (do-handshake bar-node node))))
+
+      ;; the old connection is live, this should not return a new connected
+      ;; socket.
+      (timbre/debug "Second connection")
+      (is (= {:status :alive :connection nil}
+             (do-handshake bar-node node)))
+
+      (n/stop node)
+      (h/epmd "-kill"))))
