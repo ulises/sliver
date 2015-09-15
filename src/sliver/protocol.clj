@@ -54,7 +54,7 @@
   (timbre/debug
    (format "Sent %s bytes"
            (tcp/send-bytes connection
-                           (pass-through-message [6 from-pid (symbol "monster")
+                           (pass-through-message [(int 6) from-pid (symbol "")
                                                   to]
                                                  message)))))
 
