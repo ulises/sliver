@@ -1,6 +1,6 @@
 #!/usr/bin/env escript
 %% -*- erlang -*-
-%%! -name foo@127.0.0.1
+%%! -name foo@127.0.0.1 -setcookie monster
 
 main(_) ->
     erlang:display("Connecting to bar@..."),

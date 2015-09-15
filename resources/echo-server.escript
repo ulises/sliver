@@ -1,6 +1,6 @@
 #!/usr/bin/env escript
 %% -*- erlang -*-
-%%! -sname foo
+%%! -sname foo -setcookie monster
 
 main(_) ->
     Self = self(),
