@@ -1,5 +1,7 @@
 # Sliver
 
+[![Build Status](https://travis-ci.org/ulises/sliver.svg?branch=master)](https://travis-ci.org/ulises/sliver)
+
 A Clojure library designed to make it easy to simulate native Erlang nodes.
 
 ## Include it
