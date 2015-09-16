@@ -121,7 +121,7 @@
 
       (h/erl "bar@127.0.0.1" cookie)
 
-      (Thread/sleep 5000)
+      (Thread/sleep 1000)
 
       ;; connect nodes
       (is (= :ok (:status (do-handshake node bar-node))))
@@ -130,6 +130,36 @@
       ;; socket.
       (is (= {:status :alive :connection nil}
              (do-handshake node bar-node)))
+
+      (h/killall "beam.smp")
+      (h/epmd "-kill")))
+
+  (testing "wrong cookies native -connect-> sliver"
+    (h/epmd "-daemon" "-relaxed_command_check")
+    (let [node (n/node "bar@127.0.0.1" "monster" [])]
+
+      (n/start node)
+
+      (h/escript "resources/wrong.cookie.native->sliver.escript")
+
+      (is (= [:epmd-socket :server-socket]
+             (keys @(:state node))))
+
+      (n/stop node)
+      (h/epmd "-kill")))
+
+  (testing "wrong cookies sliver -connect-> native"
+    (h/epmd "-daemon" "-relaxed_command_check")
+    (let [foo  "foo@127.0.0.1"
+          node (n/node "bar@127.0.0.1" "monster" [])]
+
+      (h/erl foo "random")
+      (Thread/sleep 1000)
+
+      (n/connect node {:node-name "foo"})
+
+      ;; the node hasn't been started, so no connections here
+      (is (not (keys @(:state node))))
 
       (h/killall "beam.smp")
       (h/epmd "-kill"))))
@@ -158,14 +188,38 @@
       (n/start node)
 
       ;; connect nodes
-      (timbre/debug "First connection")
       (is (= :ok (:status (do-handshake bar-node node))))
 
       ;; the old connection is live, this should not return a new connected
       ;; socket.
-      (timbre/debug "Second connection")
       (is (= {:status :alive :connection nil}
              (do-handshake bar-node node)))
+
+      (n/stop node)
+      (h/epmd "-kill")))
+
+  (testing "wrong cookies sliver -connect-> sliver"
+    (h/epmd "-daemon" "-relaxed_command_check")
+    (let [cookie   "monster"
+          node     (n/node "foo@127.0.0.1" cookie [])
+          bar-node {:node-name "bar@127.0.0.1" :cookie "random"}]
+
+      (n/start node)
+
+      ;; connect nodes
+      (is (= :error (:status (do-handshake bar-node node))))
+
+      (n/stop node)
+      (h/epmd "-kill")))
+
+  (testing "wrong cookies sliver -connect-> sliver II"
+    (h/epmd "-daemon" "-relaxed_command_check")
+    (let [node     (n/node "foo@127.0.0.1" "monster" [])
+          bar-node (n/node  "bar@127.0.0.1" "random" [])]
+
+      (n/start bar-node)
+
+      (n/connect node bar-node)
 
       (n/stop node)
       (h/epmd "-kill"))))

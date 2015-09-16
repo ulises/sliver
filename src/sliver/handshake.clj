@@ -112,13 +112,17 @@
 
 (defn- read-handshake-packet
   [conn handler]
-  (let [raw-packet (tcp/read-handshake-packet conn)
-        hs-packet  (handshake-packet raw-packet)
-        decoded    (handler hs-packet)]
-    (timbre/debug "PACKET:" raw-packet)
-    (timbre/debug "HS-PACKET:" hs-packet)
-    (timbre/debug "DECODED: " decoded)
-    decoded))
+  (try
+    (let [raw-packet (tcp/read-handshake-packet conn)
+          hs-packet  (handshake-packet raw-packet)
+          decoded    (handler hs-packet)]
+      (timbre/debug "PACKET:" raw-packet)
+      (timbre/debug "HS-PACKET:" hs-packet)
+      (timbre/debug "DECODED: " decoded)
+      decoded)
+    (catch Exception e
+      (timbre/debug e)
+      nil)))
 
 (defn send-name [connection name]
   (tcp/send-bytes connection (send-name-packet name
@@ -179,7 +183,7 @@
                              ack         (check-challenge-ack connection
                                                               (:challenge a-challenge)
                                                               cookie)]
-                         {:status ack :connection connection})
+                         {:status (or ack :error) :connection connection})
         (= :alive status) (do (send-status connection :false)
                               (.close connection)
                               {:status :alive :connection nil})
