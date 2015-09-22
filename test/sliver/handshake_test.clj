@@ -5,7 +5,8 @@
             [sliver.node :as n]
             [sliver.test-helpers :as h]
             [taoensso.timbre :as timbre])
-  (:import [java.nio ByteBuffer]))
+  (:import [java.nio ByteBuffer]
+           [java.net NetworkInterface InetAddress]))
 
 (deftest test-read-packet
   (testing "reads a packet"
@@ -100,8 +101,8 @@
   (testing "successful handshake"
     (h/epmd "-daemon" "-relaxed_command_check")
     (let [cookie   "monster"
-          node     {:node-name "foo@127.0.0.1" :cookie cookie}
-          bar-node {:node-name "bar@127.0.0.1" :cookie cookie}]
+          node     (n/node "foo@127.0.0.1" cookie [])
+          bar-node (n/node "bar@127.0.0.1" cookie [])]
 
       (h/erl "bar@127.0.0.1" cookie)
 
@@ -116,8 +117,8 @@
   (testing "alive handshake"
     (h/epmd "-daemon" "-relaxed_command_check")
     (let [cookie   "monster"
-          node     {:node-name "foo@127.0.0.1" :cookie cookie}
-          bar-node {:node-name "bar@127.0.0.1" :cookie cookie}]
+          node     (n/node "foo@127.0.0.1" cookie [])
+          bar-node (n/node "bar@127.0.0.1" cookie [])]
 
       (h/erl "bar@127.0.0.1" cookie)
 
@@ -183,7 +184,7 @@
     (h/epmd "-daemon" "-relaxed_command_check")
     (let [cookie   "monster"
           node     (n/node "foo@127.0.0.1" cookie [])
-          bar-node {:node-name "bar@127.0.0.1" :cookie cookie}]
+          bar-node (n/node "bar@127.0.0.1" cookie [])]
 
       (n/start node)
 
@@ -222,4 +223,125 @@
       (n/connect node bar-node)
 
       (n/stop node)
+      (h/epmd "-kill"))))
+
+(deftest all-name-variations-work-test
+  (testing "foo <-> bar (sliver)"
+    (h/epmd "-daemon" "-relaxed_command_check")
+    (let [cookie   "monster"
+          node     (n/node "foo" cookie [])
+          bar-node (n/node "bar" cookie [])]
+
+      (n/start node)
+
+      ;; connect nodes
+      (is (= :ok (:status (do-handshake bar-node node))))
+
+      (n/stop node)
+      (h/epmd "-kill")))
+
+  (testing "foo <-> bar (native)"
+    (h/epmd "-daemon" "-relaxed_command_check")
+    (let [cookie   "monster"
+          node     (n/node "foo" cookie [])
+          bar-node (n/node "bar" cookie [])]
+
+      (h/erl "bar" cookie)
+
+      (Thread/sleep 1000)
+
+      ;; connect nodes
+      (is (= :ok (:status (do-handshake node bar-node))))
+
+      (h/killall "beam.smp")
+      (h/epmd "-kill")))
+
+  (testing "foo <-> bar@ip (sliver)"
+    (h/epmd "-daemon" "-relaxed_command_check")
+    (let [cookie   "monster"
+          node     (n/node "foo" cookie [])
+          bar-node (n/node "bar@127.0.0.1" cookie [])]
+
+      (n/start node)
+
+      ;; connect nodes
+      (is (= :ok (:status (do-handshake bar-node node))))
+
+      (n/stop node)
+      (h/epmd "-kill")))
+
+  (testing "foo <-> bar@ip (native)"
+    (h/epmd "-daemon" "-relaxed_command_check")
+    (let [cookie   "monster"
+          node     (n/node "foo" cookie [])
+          bar-node (n/node "bar@127.0.0.1" cookie [])]
+
+      (h/erl "bar@127.0.0.1" cookie)
+
+      (Thread/sleep 1000)
+
+      ;; connect nodes
+      (is (= :ok (:status (do-handshake node bar-node))))
+
+      (h/killall "beam.smp")
+      (h/epmd "-kill")))
+
+  (testing "foo@ip <-> bar (sliver)"
+    (h/epmd "-daemon" "-relaxed_command_check")
+    (let [cookie   "monster"
+          node     (n/node "foo@127.0.0.1" cookie [])
+          bar-node (n/node "bar" cookie [])]
+
+      (n/start node)
+
+      ;; connect nodes
+      (is (= :ok (:status (do-handshake bar-node node))))
+
+      (n/stop node)
+      (h/epmd "-kill")))
+
+  (testing "foo@ip <-> bar (native)"
+    (h/epmd "-daemon" "-relaxed_command_check")
+    (let [cookie   "monster"
+          node     (n/node "foo@127.0.0.1" cookie [])
+          bar-node (n/node "bar" cookie [])]
+
+      (h/erl "bar" cookie)
+
+      (Thread/sleep 1000)
+
+      ;; connect nodes
+      (is (= :ok (:status (do-handshake node bar-node))))
+
+      (h/killall "beam.smp")
+      (h/epmd "-kill")))
+
+  (testing "foo@ip <-> bar@ip (sliver)"
+    (h/epmd "-daemon" "-relaxed_command_check")
+    (let [cookie   "monster"
+          node     (n/node "foo@localhost" cookie [])
+          bar-node (n/node "bar@127.0.0.1" cookie [])]
+
+      (n/start node)
+
+      ;; connect nodes
+      (is (= :ok (:status (do-handshake bar-node node))))
+
+      (n/stop node)
+      (h/epmd "-kill")))
+
+  (testing "foo@ip <-> bar@ip (native)"
+    (h/epmd "-daemon" "-relaxed_command_check")
+    (let [cookie   "monster"
+          node     (n/node "foo@localhost" cookie [])
+          bar-node (n/node "bar@127.0.0.1" cookie [])]
+
+      (h/erl "bar@127.0.0.1" cookie)
+
+      (Thread/sleep 1000)
+
+      ;; connect nodes
+      (is (= :ok (:status (do-handshake node bar-node))))
+
+      (h/killall "beam.smp")
       (h/epmd "-kill"))))

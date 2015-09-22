@@ -9,6 +9,7 @@
 (defn- handler
   [p]
   (fn [node from to message]
+    (timbre/debug from "->" to "::" message)
     (deliver p message)))
 
 (deftest accept-incoming-connections-test
@@ -26,7 +27,7 @@
   (testing "native erlang nodes can connect to sliver nodes"
     (h/epmd "-daemon" "-relaxed_command_check")
     (let [node       (n/node "bar@127.0.0.1" "monster" [])
-          other-node "foo@127.0.0.1"]
+          other-node "foo"]
 
       ;; accept incoming connections
       (n/start node)
@@ -41,9 +42,7 @@
 
   (testing "more than one native erlang node can connect"
     (h/epmd "-daemon" "-relaxed_command_check")
-    (let [node     (n/node "spaz@127.0.0.1" "monster" [])
-          foo-node "foo@127.0.0.1"
-          bar-node "bar@127.0.0.1"]
+    (let [node (n/node "spaz@127.0.0.1" "monster" [])]
 
       ;; accept incoming connections
       (n/start node)
@@ -54,8 +53,7 @@
       ;; ;; connect from native node bar
       (h/escript "resources/connect-from-native-node-bar.escript")
 
-      (is (= (keys @(:state node)) [ bar-node foo-node :epmd-socket
-                                    :server-socket]))
+      (is (= (keys @(:state node)) ["bar" "foo" :epmd-socket :server-socket]))
       (n/stop node)
 
       (h/epmd "-kill")))
@@ -70,7 +68,7 @@
       (n/start foo-node)
       (n/connect bar-node foo-node)
 
-      (is (= [bar-name :epmd-socket :server-socket]
+      (is (= ["bar" :epmd-socket :server-socket]
              (keys @(:state foo-node))))
 
       (n/stop foo-node)
@@ -83,8 +81,8 @@
     (h/epmd "-daemon" "-relaxed_command_check")
 
     (let [node-name  "foo@127.0.0.1"
-          plain-name (util/plain-name "foo")
-          node       (n/node node-name "monster" [])]
+          node       (n/node node-name "monster" [])
+          plain-name (util/plain-name node)]
 
       (n/start node)
       (is (pos? (epmd/port (epmd/client) plain-name)))
@@ -108,7 +106,7 @@
     (h/epmd "-daemon" "-relaxed_command_check")
     (let [message-received (promise)
           _                (h/escript "resources/echo-server.escript")
-          other-node       {:node-name "foo"}
+          other-node       (n/node "foo" "monster" [])
           node             (n/connect (n/node "bar@127.0.0.1" "monster"
                                               [(handler message-received)])
                                       other-node)
@@ -145,7 +143,7 @@
   (h/epmd "-daemon" "-relaxed_command_check")
   (let [message-received (promise)
         _                (h/escript "resources/echo-server.escript")
-        other-node       {:node-name "foo"}
+        other-node       (n/node "foo" "monster" [])
         node             (n/node "bar@127.0.0.1" "monster"
                                  [(handler message-received)])
         pid              (n/pid node)

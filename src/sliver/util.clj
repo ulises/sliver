@@ -21,6 +21,14 @@
   (let [dig (md5 (str cookie (String/valueOf challenge)))]
     (take 16 dig)))
 
-(defn plain-name [fqdn]
+(defn maybe-split [name]
+  (clojure.string/split name #"@"))
+
+(defn plain-name [{:keys [node-name] :as maybe-name}]
   "Strips the @IP/host part of a node name"
-  (first (clojure.string/split fqdn #"@")))
+  (if node-name
+    (first (maybe-split node-name))
+    (first (maybe-split maybe-name))))
+
+(defn fqdn [{:keys [node-name host]}]
+  (str node-name "@" host))
