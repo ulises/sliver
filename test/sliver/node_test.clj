@@ -1,6 +1,6 @@
 (ns sliver.node-test
   (:require [clojure.test :refer :all]
-            [sliver.node :refer :all]
+            [sliver.node :as n]
             [sliver.test-helpers :as h]))
 
 (defn- epmd-erl-fixture [f]
@@ -17,60 +17,52 @@
 
 (use-fixtures :each epmd-erl-fixture)
 
-(deftest test-node-host-connect
-  (testing "connect using host network details"
-    (let [node (node "bar@127.0.0.1" "monster" [])]
-      (is @(:state (connect node {:host "127.0.0.1"
-                                  :port (h/epmd-port "foo")})))
-      (stop node))))
-
 (deftest test-node-name-connect
   (testing "connect using node name"
-    (let [node (node "bar@127.0.0.1" "monster" [])]
-      (is @(:state (connect node {:node-name "foo"})))
-      (stop node))))
-
-(deftest test-node-prefer-host-config-connect
-  (testing "prefer config over name/epmd info"
-    (with-redefs [sliver.epmd/port (fn [& _] -1)]
-      (let [node (node "bar@127.0.0.1" "monster" [])]
-        (is @(:state (connect node {:node-name "foo"
-                                    :host "localhost"
-                                    :port (h/epmd-port "foo")})))
-        (stop node)))))
+    (let [node     (n/node "bar@127.0.0.1" "monster" [])
+          foo-node (n/node "foo@127.0.0.1" "monster" [])]
+      (is @(:state (n/connect node foo-node)))
+      (n/stop node))))
 
 (deftest test-node-connects-to-multiple-erlang-nodes
   (testing "connect using node name"
-    (let [node (node "bar@127.0.0.1" "monster" [])]
-      (connect node {:node-name "foo"})
-      (connect node {:node-name "foo2"})
-      (is (= '({:node-name "foo2"} {:node-name "foo"})
+    (let [node (n/node "bar@127.0.0.1" "monster" [])
+          foo  (n/node "foo@127.0.0.1" "monster" [])
+          foo2 (n/node "foo2@127.0.0.1" "monster" [])]
+      (n/connect node foo)
+      (n/connect node foo2)
+
+      (is (= '("foo2" "foo")
              (keys @(:state node))))
-      (stop node))))
+
+      (n/stop node))))
 
 (deftest test-multiple-nodes-can-coexist
   (testing "connecting from several nodes to same erlang node"
-    (let [node1 (node "bar@127.0.0.1" "monster" [])
-          node2 (node "baz@127.0.0.1" "monster" [])]
-      (connect node1 {:node-name "foo"})
-      (connect node2 {:node-name "foo"})
-      (is (= '({:node-name "foo"})
+    (let [node1 (n/node "bar@127.0.0.1" "monster" [])
+          node2 (n/node "baz@127.0.0.1" "monster" [])
+          foo   (n/node "foo@127.0.0.1" "monster" [])]
+      (n/connect node1 foo)
+      (n/connect node2 foo)
+
+      (is (= '("foo")
              (keys @(:state node1))))
-      (is (= '({:node-name "foo"})
+      (is (= '("foo")
              (keys @(:state node2))))
-      (stop node1)
-      (stop node2))))
+
+      (n/stop node1)
+      (n/stop node2))))
 
 (deftest test-pid-minting
   (testing "creating a new pid increments the pid count"
-    (let [node (node "bar@127.0.0.1" "monster" [])]
-      (is (< (:pid (pid node)) (:pid (pid node))))
-      (stop node)))
+    (let [node (n/node "bar@127.0.0.1" "monster" [])]
+      (is (< (:pid (n/pid node)) (:pid (n/pid node))))
+      (n/stop node)))
 
   (testing "creating too many pids rolls pid counter over"
-    (let [node (node "bar@127.0.0.1" "monster" [])]
-      (let [a-pid (pid node)]
+    (let [node (n/node "bar@127.0.0.1" "monster" [])]
+      (let [a-pid (n/pid node)]
         (doseq [_ (range 0xfffff)]
-          (pid node))
-        (is (< (:serial a-pid) (:serial (pid node))))
-        (stop node)))))
+          (n/pid node))
+        (is (< (:serial a-pid) (:serial (n/pid node))))
+        (n/stop node)))))

@@ -116,8 +116,6 @@
     (let [raw-packet (tcp/read-handshake-packet conn)
           hs-packet  (handshake-packet raw-packet)
           decoded    (handler hs-packet)]
-      (timbre/debug "PACKET:" raw-packet)
-      (timbre/debug "HS-PACKET:" hs-packet)
       (timbre/debug "DECODED: " decoded)
       decoded)
     (catch Exception e
@@ -125,6 +123,7 @@
       nil)))
 
 (defn send-name [connection name]
+  (timbre/debug "SEND NAME:" name)
   (tcp/send-bytes connection (send-name-packet name
                                                dflag-extended-pid-ports
                                                dflag-extended-references)))
@@ -172,7 +171,7 @@
                          (epmd/port epmd-conn (util/plain-name
                                                (:node-name other-node)))))
         connection (tcp/client host port)]
-    (send-name connection node-name)
+    (send-name connection (util/fqdn node))
     (let [status (recv-status connection)]
       (cond
         (= :ok status) (let [b-challenge (recv-challenge connection)
@@ -200,7 +199,9 @@
         b-challenge (util/gen-challenge)
         result      {:other-node a-name :connection connection}]
     (timbre/debug "Connection from:" a-name)
-    (if (get @(:state node) a-name)
+    ;; it's sad I can't use node/get-connection for this because of
+    ;; circular deps ;_;
+    (if (get @(:state node) (util/plain-name a-name))
       (do (timbre/debug "Connection for" a-name "is alive.")
           (send-status connection :alive)
           ;; here one should check for true/false in case the other node
@@ -210,7 +211,7 @@
           {:status :alive :connection nil})
       (do (send-status connection :ok)
           (timbre/debug "Sent status :ok")
-          (send-challenge connection node-name b-challenge)
+          (send-challenge connection (util/fqdn node) b-challenge)
           (timbre/debug "Sent challenge: " b-challenge)
           (let [{:keys [digest challenge]} (recv-challenge-reply connection)
                 digest-matches?           (= digest

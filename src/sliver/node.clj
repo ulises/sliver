@@ -36,10 +36,13 @@ running) and starts listening for incoming connections.")
   (save-connection [node other-node connection]
     "Saves the connection to other-node")
 
+  (get-connection [node other-node]
+    "Gets the socket to other-node")
+
   (handle-connection [node connection]
     "Handles a connection after the handshake has been successful"))
 
-(defrecord Node [node-name cookie handlers state pid-tracker]
+(defrecord Node [node-name host cookie handlers state pid-tracker]
   NodeP
   (connect [node other-node]
     (let [{:keys [status connection]} (h/do-handshake node other-node)]
@@ -49,8 +52,11 @@ running) and starts listening for incoming connections.")
       node))
 
   (save-connection [node other-node connection]
-    (swap! state update-in [other-node]
+    (swap! state update-in [(util/plain-name other-node)]
            assoc :connection connection))
+
+  (get-connection [node other-node]
+    (get-in @state [(util/plain-name other-node) :connection]))
 
   (handle-connection [node connection]
     (future
@@ -62,10 +68,9 @@ running) and starts listening for incoming connections.")
                         (handler node from to message))))))))
 
   (start [node]
-    (let [name          (:node-name node)
+    (let [name          (util/plain-name node)
           port          (+ 1024 (rand-int 50000))
-          address       "localhost" ; should probably take the address to which it'll bind?
-          server        (tcp/server address port)
+          server        (tcp/server host port)
           epmd-conn     (epmd/client)
           server-thread (future
                           (loop []
@@ -95,9 +100,9 @@ running) and starts listening for incoming connections.")
 
   ;; pid(0, 42, 0) ! message
   (send-message [node pid message]
-    (let [other-node-name (second (re-find #"(\w+)@" (name (:node pid))))
+    (let [other-node-name (util/plain-name (name (:node pid)))
           other-node      {:node-name other-node-name}
-          connection      (get-in @state [other-node :connection])]
+          connection      (get-connection node other-node)]
       (if connection
         (p/send-message connection pid message)
         (do (timbre/debug
@@ -110,7 +115,7 @@ running) and starts listening for incoming connections.")
 
   ;; equivalent to {to, 'name@host'} ! message
   (send-registered-message [node from to other-node message]
-    (let [connection (get-in @state [other-node :connection])]
+    (let [connection (get-connection node other-node)]
       (if connection
         (p/send-reg-message connection from to message)
         (do (timbre/debug
@@ -127,7 +132,7 @@ running) and starts listening for incoming connections.")
     (dosync
      (let [current-pid    (:pid @pid-tracker)
            current-serial (:serial @pid-tracker)
-           new-pid        (t/pid (symbol node-name)
+           new-pid        (t/pid (symbol (util/fqdn node))
                                  current-pid
                                  current-serial
                                  (:creation @pid-tracker))]
@@ -141,5 +146,7 @@ running) and starts listening for incoming connections.")
          new-pid)))))
 
 (defn node [name cookie handlers]
-  (Node. name cookie handlers (atom {})
-         (ref {:pid 0 :serial 0 :creation 0})))
+  (let [[node-name host] (util/maybe-split name)]
+    (timbre/debug node-name "::" host)
+    (Node. node-name (or host "localhost") cookie handlers (atom {})
+           (ref {:pid 0 :serial 0 :creation 0}))))
