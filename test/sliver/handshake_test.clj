@@ -109,7 +109,7 @@
       (Thread/sleep 5000)
 
       ;; connect nodes
-      (is (= :ok (:status (do-handshake node bar-node))))
+      (is (= :ok (:status (initiate-handshake node bar-node))))
 
       (h/killall "beam.smp")
       (h/epmd "-kill")))
@@ -125,12 +125,12 @@
       (Thread/sleep 1000)
 
       ;; connect nodes
-      (is (= :ok (:status (do-handshake node bar-node))))
+      (is (= :ok (:status (initiate-handshake node bar-node))))
 
       ;; the old connection is live, this should not return a new connected
       ;; socket.
       (is (= {:status :alive :connection nil}
-             (do-handshake node bar-node)))
+             (initiate-handshake node bar-node)))
 
       (h/killall "beam.smp")
       (h/epmd "-kill")))
@@ -175,7 +175,7 @@
       (n/start node)
 
       ;; connect nodes
-      (is (= :ok (:status (do-handshake bar-node node))))
+      (is (= :ok (:status (initiate-handshake bar-node node))))
 
       (n/stop node)
       (h/epmd "-kill")))
@@ -189,12 +189,12 @@
       (n/start node)
 
       ;; connect nodes
-      (is (= :ok (:status (do-handshake bar-node node))))
+      (is (= :ok (:status (initiate-handshake bar-node node))))
 
       ;; the old connection is live, this should not return a new connected
       ;; socket.
       (is (= {:status :alive :connection nil}
-             (do-handshake bar-node node)))
+             (initiate-handshake bar-node node)))
 
       (n/stop node)
       (h/epmd "-kill")))
@@ -208,7 +208,7 @@
       (n/start node)
 
       ;; connect nodes
-      (is (= :error (:status (do-handshake bar-node node))))
+      (is (= :error (:status (initiate-handshake bar-node node))))
 
       (n/stop node)
       (h/epmd "-kill")))
@@ -235,7 +235,7 @@
       (n/start node)
 
       ;; connect nodes
-      (is (= :ok (:status (do-handshake bar-node node))))
+      (is (= :ok (:status (initiate-handshake bar-node node))))
 
       (n/stop node)
       (h/epmd "-kill")))
@@ -251,7 +251,7 @@
       (Thread/sleep 1000)
 
       ;; connect nodes
-      (is (= :ok (:status (do-handshake node bar-node))))
+      (is (= :ok (:status (initiate-handshake node bar-node))))
 
       (h/killall "beam.smp")
       (h/epmd "-kill")))
@@ -265,7 +265,7 @@
       (n/start node)
 
       ;; connect nodes
-      (is (= :ok (:status (do-handshake bar-node node))))
+      (is (= :ok (:status (initiate-handshake bar-node node))))
 
       (n/stop node)
       (h/epmd "-kill")))
@@ -281,7 +281,7 @@
       (Thread/sleep 1000)
 
       ;; connect nodes
-      (is (= :ok (:status (do-handshake node bar-node))))
+      (is (= :ok (:status (initiate-handshake node bar-node))))
 
       (h/killall "beam.smp")
       (h/epmd "-kill")))
@@ -295,7 +295,7 @@
       (n/start node)
 
       ;; connect nodes
-      (is (= :ok (:status (do-handshake bar-node node))))
+      (is (= :ok (:status (initiate-handshake bar-node node))))
 
       (n/stop node)
       (h/epmd "-kill")))
@@ -311,7 +311,7 @@
       (Thread/sleep 1000)
 
       ;; connect nodes
-      (is (= :ok (:status (do-handshake node bar-node))))
+      (is (= :ok (:status (initiate-handshake node bar-node))))
 
       (h/killall "beam.smp")
       (h/epmd "-kill")))
@@ -325,7 +325,7 @@
       (n/start node)
 
       ;; connect nodes
-      (is (= :ok (:status (do-handshake bar-node node))))
+      (is (= :ok (:status (initiate-handshake bar-node node))))
 
       (n/stop node)
       (h/epmd "-kill")))
@@ -341,7 +341,7 @@
       (Thread/sleep 1000)
 
       ;; connect nodes
-      (is (= :ok (:status (do-handshake node bar-node))))
+      (is (= :ok (:status (initiate-handshake node bar-node))))
 
       (h/killall "beam.smp")
       (h/epmd "-kill"))))

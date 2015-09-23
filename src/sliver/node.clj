@@ -45,7 +45,7 @@ running) and starts listening for incoming connections.")
 (defrecord Node [node-name host cookie handlers state pid-tracker]
   NodeP
   (connect [node other-node]
-    (let [{:keys [status connection]} (h/do-handshake node other-node)]
+    (let [{:keys [status connection]} (h/initiate-handshake node other-node)]
       (if (= :ok status)
         (do (save-connection node other-node connection)
             (handle-connection node connection)))
@@ -77,9 +77,12 @@ running) and starts listening for incoming connections.")
                             (timbre/debug "Accepting connections...")
                             (let [conn (.accept server)]
                               (timbre/debug "Accepted connection:" conn)
-                              (let [{:keys [status connection other-node]} (h/handle-handshake node conn)]
+                              (let [{:keys [status connection other-node]}
+                                    (h/handle-handshake node conn)]
                                 (if (= :ok status)
-                                  (do (timbre/debug "Connection established. Saving to " other-node)
+                                  (do (timbre/debug "Connection established."
+                                                    " Saving to:"
+                                                    other-node)
                                       (save-connection node other-node connection)
                                       (handle-connection node connection))
                                   (timbre/debug "Handshake failed :("))))
