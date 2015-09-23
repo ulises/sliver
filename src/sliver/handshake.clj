@@ -161,10 +161,9 @@
                                   challenge cookie)))
 
 ;; this is for initiating a connection to a node
-(defn do-handshake
+(defn initiate-handshake
   [{:keys [node-name cookie] :as node}
-   {:keys [host port] :or {host "localhost"}
-    :as other-node}]
+   {:keys [host port] :or {host "localhost"} :as other-node}]
   (let [port       (or port
                        (with-open [^SocketChannel epmd-conn
                                    (epmd/client)]
@@ -193,8 +192,7 @@
 
 ;; this is for handling an incoming connection from a node
 (defn handle-handshake
-  [{:keys [node-name cookie] :as node}
-   ^SocketChannel connection]
+  [{:keys [node-name cookie] :as node} ^SocketChannel connection]
   (let [a-name      (recv-name connection)
         b-challenge (util/gen-challenge)
         result      {:other-node a-name :connection connection}]
