@@ -106,12 +106,8 @@ running) and starts listening for incoming connections.")
       (if connection
         (p/send-message connection pid message)
         (do (timbre/debug
-             (format "Couldn't find connection for %s. Connecting..."
-                     other-node-name))
-            ;; if the connection fails, this is will go into a crazy
-            ;; reconnect-fail DOS loop
-            (connect node other-node)
-            (recur pid message)))))
+             (format "Couldn't find connection for %s. Please double check this."
+                     other-node-name))))))
 
   ;; equivalent to {to, 'name@host'} ! message
   (send-registered-message [node from to other-node message]
@@ -119,12 +115,8 @@ running) and starts listening for incoming connections.")
       (if connection
         (p/send-reg-message connection from to message)
         (do (timbre/debug
-             (format "Couldn't find connection for %s. Connecting..."
-                     other-node))
-            ;; if the connection fails, this is will go into a crazy
-            ;; reconnect-fail DOS loop
-            (connect node other-node)
-            (recur from to other-node message)))))
+             (format "Couldn't find connection for %s. Please double check this."
+                     other-node))))))
 
   ;; creates a new pid. This is internal, and is likely to be used in
   ;; conjunction with some form of custom spawn implementation
