@@ -138,19 +138,3 @@
       (n/stop node)
 
       (h/epmd "-kill"))))
-
-(deftest test-on-demand-ping-pong
-  (h/epmd "-daemon" "-relaxed_command_check")
-  (let [message-received (promise)
-        _                (h/escript "resources/echo-server.escript")
-        other-node       (n/node "foo" "monster" [])
-        node             (n/node "bar@127.0.0.1" "monster"
-                                 [(handler message-received)])
-        pid              (n/pid node)
-        message          'ohai2u]
-    (n/send-registered-message node pid 'echo other-node
-                               [pid message])
-
-    (is (= (deref message-received 100 'fail) message))
-    (n/stop node)
-    (h/epmd "-kill")))
