@@ -103,7 +103,7 @@ running) and starts listening for incoming connections.")
 
   ;; pid(0, 42, 0) ! message
   (send-message [node pid message]
-    (let [other-node-name (util/plain-name (name (:node pid)))
+    (let [other-node-name (util/plain-name (:node pid))
           other-node      {:node-name other-node-name}
           connection      (get-connection node other-node)]
       (if connection
