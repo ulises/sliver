@@ -183,9 +183,9 @@
                                                               cookie)]
                          {:status (or ack :error) :connection connection})
         (= :alive status) (do (send-status connection :false)
-                              (.close connection)
+                              (.close ^SocketChannel connection)
                               {:status :alive :connection nil})
-        :else (do (.close connection)
+        :else (do (.close ^SocketChannel connection)
                   (timbre/debug "Failed handshake. Status:" status
                                 "This is a bug. Please file a ticket.")
                   {:status :other :connection nil})))))
