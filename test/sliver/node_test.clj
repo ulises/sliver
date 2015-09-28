@@ -66,3 +66,11 @@
           (n/pid node))
         (is (< (:serial a-pid) (:serial (n/pid node))))
         (n/stop node)))))
+
+(deftest test-making-references
+  (testing "creating a reference"
+    (let [node      (n/node "bar@127.0.0.1" "monster" [])
+          pid       (n/pid node)
+          reference (n/make-ref node pid)]
+      (is "bar@127.0.0.1" (:node reference))
+      (is pid (:pid reference)))))

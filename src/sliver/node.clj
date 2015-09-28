@@ -33,6 +33,9 @@ running) and starts listening for incoming connections.")
   (pid [node]
     "Creates a new pid.")
 
+  (make-ref [node pid]
+    "Creates a new reference.")
+
   (save-connection [node other-node connection]
     "Saves the connection to other-node")
 
@@ -42,7 +45,7 @@ running) and starts listening for incoming connections.")
   (handle-connection [node connection]
     "Handles a connection after the handshake has been successful"))
 
-(defrecord Node [node-name host cookie handlers state pid-tracker]
+(defrecord Node [node-name host cookie handlers state pid-tracker ref-tracker]
   NodeP
   (connect [node other-node]
     (let [{:keys [status connection]} (h/initiate-handshake node other-node)]
@@ -138,10 +141,17 @@ running) and starts listening for incoming connections.")
                     (inc current-serial))]
                [(inc current-pid) current-serial])]
          (alter pid-tracker assoc :pid next-pid :serial next-serial)
-         new-pid)))))
+         new-pid))))
+
+  (make-ref [node pid]
+    (dosync
+     (let [creation (:creation @ref-tracker)]
+       (alter ref-tracker assoc :creation (inc creation))
+       (t/reference (util/fqdn node) 0 creation)))))
 
 (defn node [name cookie handlers]
   (let [[node-name host] (util/maybe-split name)]
     (timbre/debug node-name "::" host)
     (Node. node-name (or host "localhost") cookie handlers (atom {})
-           (ref {:pid 0 :serial 0 :creation 0}))))
+           (ref {:pid 0 :serial 0 :creation 0})
+           (ref {:creation 0}))))
