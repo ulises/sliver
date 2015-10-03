@@ -138,3 +138,48 @@
       (n/stop node)
 
       (h/epmd "-kill"))))
+
+(defn- type-x-echo-test [data]
+  (h/epmd "-daemon" "-relaxed_command_check")
+  (let [message-received (promise)
+        other-node       "foo@127.0.0.1"
+        node             (n/start (n/node "bar@127.0.0.1" "monster"
+                                          [(handler message-received)]))
+        pid              (n/pid node)
+        message          data]
+
+    (h/escript "resources/native-to-sliver.echo-server.escript")
+
+    (n/send-registered-message node pid 'echo other-node
+                               [pid message])
+
+    (let [expected (deref message-received 5000 'fail)]
+      (is (= expected message)
+          (str "T-ex:" (type expected) " -- "
+               "T-ac:" (type message))))
+    (n/stop node)
+
+    (h/epmd "-kill")))
+
+(deftest all-types-echo-test
+  (doseq [t [(int 1)
+             ;; 123.456 ;; This works ok with the exception that we read a
+             ;; Double instead of a float
+             'foo
+             ;; :foo <- decoding this returns a symbol, that's because both
+             ;; symbols and keywords encode to an erlang atom :/
+             ['foo 'bar "ohais2u" [1000 10001 65535]]
+             nil
+             "foo"
+             '(1 2 3)
+             1267650600228229401496703205376
+             123456789101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354555657585960616263646566676869707172737475767778798081828384858687888990919293949596979899100101102103104105106107108109110111112113114115116117118119120121122123124125126127128129130131132133134135136137138139140141142143144145146147148149150151152153154155156157158159160161162163164165166167168169170171172173174175176177178179180181182183184185186187188189190191192193194195196197198199200201202203204205206207208209210211212213214215216217218219220221222223224225226227228229230231232233234235236237238239240241242243244245246247248249250251252253254255256
+             (borges.type/reference (symbol "nonode@nohost") [0 0 43] 0)
+             (borges.type/pid (symbol "nonode@nohost") 41 0 0)
+             {"foo" 'bar
+              (borges.type/pid (symbol "nonode@nohost") 41 0 0) {1 [1 2 3]}}
+             ;; (byte-array [1 2 3]) ;; test fails because comparing byte arrays.
+             ;; Data is actually  returned ok
+             (seq [1 2 3])
+             (map identity [1 2 3])]]
+      (type-x-echo-test t)))
