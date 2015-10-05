@@ -140,18 +140,23 @@ running) and starts listening for incoming connections.")
                     0
                     (inc current-serial))]
                [(inc current-pid) current-serial])]
-         (alter pid-tracker assoc :pid next-pid :serial next-serial)
+         (alter pid-tracker assoc
+                :pid next-pid
+                :serial next-serial)
          new-pid))))
 
   (make-ref [node pid]
     (dosync
-     (let [creation (:creation @ref-tracker)]
-       (alter ref-tracker assoc :creation (inc creation))
-       (t/reference (util/fqdn node) 0 creation)))))
+     (let [creation      (:creation @ref-tracker)
+           id            (:id @ref-tracker)
+           new-reference (t/reference (symbol (util/fqdn node)) id creation)]
+       (let [next-creation (inc creation)]
+         (alter ref-tracker assoc :creation next-creation)
+        new-reference)))))
 
 (defn node [name cookie handlers]
   (let [[node-name host] (util/maybe-split name)]
     (timbre/debug node-name "::" host)
     (Node. node-name (or host "localhost") cookie handlers (atom {})
            (ref {:pid 0 :serial 0 :creation 0})
-           (ref {:creation 0}))))
+           (ref {:creation 0 :id [0 1 1]}))))
