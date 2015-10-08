@@ -2,6 +2,7 @@
   (:require [borges.type :as t]
             [borges.decoder :as d]
             [bytebuffer.buff :refer [take-ubyte]]
+            [co.paralleluniverse.pulsar.actors :as a]
             [sliver.epmd :as epmd]
             [sliver.handshake :as h]
             [sliver.protocol :as p]
@@ -33,6 +34,18 @@ running) and starts listening for incoming connections.")
   (pid [node]
     "Creates a new pid.")
 
+  (track-pid [node pid actor]
+    "Keeps pids connected to actors")
+
+  (actor-for [node pid]
+    "Returns the actor linked to pid")
+
+  (pid-for [node actor]
+    "Returns the pid linked to actor")
+
+  (spawn [node f]
+    "Spawns function f as a process.")
+
   (make-ref [node pid]
     "Creates a new reference.")
 
@@ -45,7 +58,8 @@ running) and starts listening for incoming connections.")
   (handle-connection [node connection]
     "Handles a connection after the handshake has been successful"))
 
-(defrecord Node [node-name host cookie handlers state pid-tracker ref-tracker]
+(defrecord Node [node-name host cookie handlers state pid-tracker ref-tracker
+                 actor-tracker reverse-actor-tracker]
   NodeP
   (connect [node other-node]
     (let [{:keys [status connection]} (h/initiate-handshake node other-node)]
@@ -145,6 +159,31 @@ running) and starts listening for incoming connections.")
                 :serial next-serial)
          new-pid))))
 
+  ;; should have a reaper thread/actor that periodically traverses the list of
+  ;; tracked actors, and claims those that are done/dead.
+  (track-pid [node pid actor]
+    (timbre/debug "Tracking: {" pid " " actor "}")
+    ;; should use refs here to coordinate both changes? I reckon 2 atoms should
+    ;; be fine.
+    (swap! actor-tracker assoc pid actor)
+    (swap! reverse-actor-tracker assoc actor pid)
+    pid)
+
+  (actor-for [node pid]
+    (get @actor-tracker pid))
+
+  (pid-for [node actor]
+    (get @reverse-actor-tracker actor))
+
+  (spawn [node f]
+    (let [p (pid node)]
+      ;; it's likely that there's a race condition here between the spawning
+      ;; of the process and it being registered. An actor might want to
+      ;; immediately perform node ops that depend on the registry and its own
+      ;; registered pid and they won't be available, etc. Figure out how to
+      ;; spawn an actor in a "paused" mode
+      (track-pid node p (a/spawn f))))
+
   (make-ref [node pid]
     (dosync
      (let [creation      (:creation @ref-tracker)
@@ -159,4 +198,7 @@ running) and starts listening for incoming connections.")
     (timbre/debug node-name "::" host)
     (Node. node-name (or host "localhost") cookie handlers (atom {})
            (ref {:pid 0 :serial 0 :creation 0})
-           (ref {:creation 0 :id [0 1 1]}))))
+           (ref {:creation 0 :id [0 1 1]})
+           (atom {})
+           (atom {}))))
+

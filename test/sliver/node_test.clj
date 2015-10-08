@@ -1,6 +1,8 @@
 (ns sliver.node-test
   (:require [clojure.test :refer :all]
             [sliver.node :as n]
+            [co.paralleluniverse.pulsar.actors :as a]
+            [co.paralleluniverse.pulsar.core :as c]
             [sliver.test-helpers :as h]))
 
 (defn- epmd-erl-fixture [f]
@@ -74,3 +76,21 @@
           reference (n/make-ref node pid)]
       (is "bar@127.0.0.1" (:node reference))
       (is pid (:pid reference)))))
+
+(deftest spawn-test
+  (testing "Spawning a process returns a pid"
+    (let [node (n/node "bar" "monster" [])]
+      (is (= borges.type.Pid (type (n/spawn node #(+ 1 1)))))))
+
+  (testing "Spawned actor is tracked"
+    (let [node  (n/node "bar" "monster" [])
+          pid   (n/spawn node #(+ 1 1))
+          actor (n/actor-for node pid)]
+      (is (n/actor-for node pid))
+      (is (= pid (n/pid-for node actor)))))
+
+  (testing "Spawned actor actually does work"
+    (let [result (promise)
+          node   (n/node "bar" "monster" [])
+          _ (n/spawn node #(deliver result 'did-it))]
+      (is (= 'did-it (deref result 100 'didnt-do-it))))))
