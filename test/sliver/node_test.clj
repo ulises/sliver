@@ -2,7 +2,6 @@
   (:require [clojure.test :refer :all]
             [sliver.node :as n]
             [co.paralleluniverse.pulsar.actors :as a]
-            [co.paralleluniverse.pulsar.core :as c]
             [sliver.test-helpers :as h]))
 
 (defn- epmd-erl-fixture [f]
@@ -94,3 +93,27 @@
           node   (n/node "bar" "monster" [])
           _ (n/spawn node #(deliver result 'did-it))]
       (is (= 'did-it (deref result 100 'didnt-do-it))))))
+
+(deftest send-messages-to-local-processes-test
+  (testing "local message doesn't hit the wire"
+    (with-redefs [sliver.protocol/send-message
+                  (fn [& _]
+                    (is false "messages should not hit the wire"))]
+      (let [result (promise)
+            node   (n/node "bar" "monster" [])
+            pid1   (n/spawn node (fn []
+                                   (a/receive
+                                    m (deliver result m))))]
+        (n/send-message node pid1 'success)
+
+        (is (= 'success (deref result 100 'failed))))))
+
+  (testing "local message to non-existing process doesn't kill everything"
+    (with-redefs [sliver.protocol/send-message
+                  (fn [& _]
+                    (is false "messages should not hit the wire"))]
+      (let [node   (n/node "bar" "monster" [])]
+        ;; send to non-existing process
+        (n/send-message node (n/pid node) 'success)
+        ;; only to get an assertion here
+        (is true)))))
