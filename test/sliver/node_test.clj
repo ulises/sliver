@@ -116,4 +116,31 @@
         ;; send to non-existing process
         (n/send-message node (n/pid node) 'success)
         ;; only to get an assertion here
-        (is true)))))
+        (is true))))
+
+  (testing "local ping pong doesn't hit the wire"
+    (with-redefs [sliver.protocol/send-message
+                  (fn [& _]
+                    (is false "messages should not hit the wire"))]
+      (let [result (promise)
+            node   (n/node "bar" "monster" [])
+            pid1   (n/spawn node (fn []
+                                   (a/receive
+                                    [from m] (n/send-message node from m))))]
+        (n/spawn node (fn []
+                        (n/send-message node pid1 [(n/self node)
+                                                   'ping])
+                        (a/receive
+                         'ping (deliver result 'success))))
+
+        ;; because race condition between actors ping-ponging and assertion
+        (Thread/sleep 1000)
+
+        (is (= 'success (deref result 100 'failed)))))))
+
+(deftest self-test
+  (testing "self returns own pid"
+    (let [result (promise)
+          node   (n/node "bar" "monster" [])
+          pid1   (n/spawn node #(deliver result (n/self node)))]
+        (is (= pid1 (deref result 100 'fail))))))

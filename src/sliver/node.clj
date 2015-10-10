@@ -43,6 +43,9 @@ running) and starts listening for incoming connections.")
   (pid-for [node actor]
     "Returns the pid linked to actor")
 
+  (self [node]
+    "Returns pid for current actor")
+
   (spawn [node f]
     "Spawns function f as a process.")
 
@@ -175,7 +178,17 @@ running) and starts listening for incoming connections.")
     (get @actor-tracker pid))
 
   (pid-for [node actor]
-    (get @reverse-actor-tracker actor))
+    (if-let [pid (get @reverse-actor-tracker actor)]
+      pid
+      ;; this is terbil, but it works ;_;
+      ;; this is the race condition for when an actor is spawned and it immediately
+      ;; wants to use (self node). Retrying for now seems to be ok, but need a
+      ;; better solution.
+      (do (Thread/sleep 10)
+          (pid-for node actor))))
+
+  (self [node]
+    (pid-for node @a/self))
 
   (spawn [node f]
     (let [p (pid node)]
