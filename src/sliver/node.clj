@@ -49,6 +49,12 @@ running) and starts listening for incoming connections.")
   (spawn [node f]
     "Spawns function f as a process.")
 
+  (register [node pid name]
+    "Registers a process under a name")
+
+  (whereis [node name]
+    "Finds an actor's pid based on its name")
+
   (make-ref [node pid]
     "Creates a new reference.")
 
@@ -62,7 +68,7 @@ running) and starts listening for incoming connections.")
     "Handles a connection after the handshake has been successful"))
 
 (defrecord Node [node-name host cookie handlers state pid-tracker ref-tracker
-                 actor-tracker reverse-actor-tracker]
+                 actor-tracker reverse-actor-tracker actor-registry]
   NodeP
   (connect [node other-node]
     (let [{:keys [status connection]} (h/initiate-handshake node other-node)]
@@ -199,6 +205,16 @@ running) and starts listening for incoming connections.")
       ;; spawn an actor in a "paused" mode
       (track-pid node p (a/spawn f))))
 
+  ;; this is likely to suffer from a race condition just like track-pid
+  (register [node pid name]
+    (when (and name
+               (not (whereis node name)))
+      (swap! actor-registry assoc name pid)
+      name))
+
+  (whereis [node name]
+    (get @actor-registry name))
+
   (make-ref [node pid]
     (dosync
      (let [creation      (:creation @ref-tracker)
@@ -215,5 +231,5 @@ running) and starts listening for incoming connections.")
            (ref {:pid 0 :serial 0 :creation 0})
            (ref {:creation 0 :id [0 1 1]})
            (atom {})
+           (atom {})
            (atom {}))))
-
