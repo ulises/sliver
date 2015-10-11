@@ -143,4 +143,70 @@
     (let [result (promise)
           node   (n/node "bar" "monster" [])
           pid1   (n/spawn node #(deliver result (n/self node)))]
-        (is (= pid1 (deref result 100 'fail))))))
+      (is (= pid1 (deref result 100 'fail))))))
+
+(deftest register-named-processes-test
+  (testing "can register a process with a name (symbol)"
+    (let [node       (n/node "bar" "monster" [])
+          name       'clint-eastwood
+          pid        (n/spawn node #(+ 1 1))
+          actor-name (n/register node pid name)]
+      (is (= name actor-name))))
+
+  (testing "can register a process with a name (keyword)"
+    (let [node       (n/node "bar" "monster" [])
+          name       :clint-eastwood
+          pid        (n/spawn node #(+ 1 1))
+          actor-name (n/register node pid name)]
+      (is (= name actor-name))))
+
+  (testing "can register a process with a name (string)"
+    (let [node       (n/node "bar" "monster" [])
+          name       "clint eastwood"
+          pid        (n/spawn node #(+ 1 1))
+          actor-name (n/register node pid name)]
+      (is (= name actor-name))))
+
+  (testing "registering a process with an already registered name fails"
+    (let [node        (n/node "bar" "monster" [])
+          name        'clint-eastwood
+          pid         (n/spawn node #(+ 1 1))
+          pid2        (n/spawn node #(+ 1 1))
+          actor-name1 (n/register node pid name)
+          actor-name2 (n/register node pid2 name)]
+      (is (= name actor-name1))
+      (is (nil? actor-name2))))
+
+  (testing "can't register with nil name"
+    (let [node       (n/node "bar" "monster" [])
+          name       nil
+          pid        (n/spawn node #(+ 1 1))
+          actor-name (n/register node pid name)]
+      (is (nil? actor-name))
+      (is (nil? (n/whereis node name)))))
+
+  ;; test for registering with anything else -> fail
+  ;; in erlang valid names are just atoms, however global
+  ;; (https://github.com/erlang/otp/blob/maint/lib/kernel/src/global.erl)
+  ;; allows anything to be a name. Why not do it from the get-go here?
+
+  (testing "can find an actor based on its name (symbol)"
+    (let [node       (n/node "bar" "monster" [])
+          name       'clint-eastwood
+          pid        (n/spawn node #(+ 1 1))
+          actor-name (n/register node pid name)]
+      (is (= pid (n/whereis node actor-name)))))
+
+  (testing "can find an actor based on its name (keyword)"
+    (let [node       (n/node "bar" "monster" [])
+          name       :clint-eastwood
+          pid        (n/spawn node #(+ 1 1))
+          actor-name (n/register node pid name)]
+      (is (= pid (n/whereis node actor-name)))))
+
+  (testing "can find an actor based on its name (string)"
+    (let [node       (n/node "bar" "monster" [])
+          name       "clint eastwood"
+          pid        (n/spawn node #(+ 1 1))
+          actor-name (n/register node pid name)]
+      (is (= pid (n/whereis node actor-name))))))
