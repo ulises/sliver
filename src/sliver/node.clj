@@ -142,8 +142,13 @@ running) and starts listening for incoming connections.")
 
   ;; equivalent to {to, 'name@host'} ! message
   (send-registered-message [node from to other-node message]
-    (let [connection (get-connection node other-node)]
-      (if connection
+    ;; check other-node first, if local, check registered actor
+    (if (= (util/plain-name other-node) (util/plain-name node))
+      (if-let [pid (whereis node to)]
+        (do (timbre/debug "Sending " message " to: " to " -- " (actor-for node pid))
+            (a/! (actor-for node pid) message))
+        (do (timbre/debug "WARNING: couldn't find local actor " to)))
+      (if-let [connection (get-connection node other-node)]
         (p/send-reg-message connection from to message)
         (do (timbre/debug
              (format "Couldn't find connection for %s. Please double check this."
@@ -184,17 +189,11 @@ running) and starts listening for incoming connections.")
     (get @actor-tracker pid))
 
   (pid-for [node actor]
-    (if-let [pid (get @reverse-actor-tracker actor)]
-      pid
-      ;; this is terbil, but it works ;_;
-      ;; this is the race condition for when an actor is spawned and it immediately
-      ;; wants to use (self node). Retrying for now seems to be ok, but need a
-      ;; better solution.
-      (do (Thread/sleep 10)
-          (pid-for node actor))))
+    (get @reverse-actor-tracker actor))
 
   (self [node]
-    (pid-for node @a/self))
+    (if-let [pid (pid-for node @a/self)]
+        pid (recur)))
 
   (spawn [node f]
     (let [p (pid node)]
@@ -206,10 +205,13 @@ running) and starts listening for incoming connections.")
       (track-pid node p (a/spawn f))))
 
   ;; this is likely to suffer from a race condition just like track-pid
+  ;; in particular because of the use of whereis, we probably need a CAS
+  ;; type approach here
   (register [node pid name]
     (when (and name
                (not (whereis node name)))
       (swap! actor-registry assoc name pid)
+      (timbre/debug "Registering " pid " as " name)
       name))
 
   (whereis [node name]
