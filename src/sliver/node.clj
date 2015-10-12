@@ -181,8 +181,9 @@ running) and starts listening for incoming connections.")
     (timbre/debug "Tracking: {" pid " " actor "}")
     ;; should use refs here to coordinate both changes? I reckon 2 atoms should
     ;; be fine.
-    (swap! actor-tracker assoc pid actor)
-    (swap! reverse-actor-tracker assoc actor pid)
+    (dosync
+     (alter actor-tracker assoc pid actor)
+     (alter reverse-actor-tracker assoc actor pid))
     pid)
 
   (actor-for [node pid]
@@ -232,6 +233,6 @@ running) and starts listening for incoming connections.")
     (Node. node-name (or host "localhost") cookie handlers (atom {})
            (ref {:pid 0 :serial 0 :creation 0})
            (ref {:creation 0 :id [0 1 1]})
-           (atom {})
-           (atom {})
+           (ref {})
+           (ref {})
            (atom {}))))
