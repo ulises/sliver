@@ -177,6 +177,22 @@
       (is (= name actor-name1))
       (is (nil? actor-name2))))
 
+  (testing "registering a process with an already registered name fails (many)"
+    (let [node        (n/node "bar" "monster" [])
+          name        'clint-eastwood
+          successful  (atom 0)
+          failed      (atom 0)
+          actor-fn    (fn []
+                        (if-let [name (n/register node (n/self node) name)]
+                          (swap! successful inc)
+                          (swap! failed inc)))]
+      (doall
+       (for [_ (range 100000)]
+         (n/spawn node actor-fn)))
+
+      (is (and (= 1 @successful)
+               (= 99999 @failed)))))
+
   (testing "can't register with nil name"
     (let [node       (n/node "bar" "monster" [])
           name       nil
@@ -210,3 +226,101 @@
           pid        (n/spawn node #(+ 1 1))
           actor-name (n/register node pid name)]
       (is (= pid (n/whereis node actor-name))))))
+
+(deftest send-messages-to-local-registered-processes-test
+  (testing "local message doesn't hit the wire"
+    (with-redefs [sliver.protocol/send-reg-message
+                  (fn [& _]
+                    (is false "messages should not hit the wire"))]
+      (let [result (promise)
+            node   (n/node "bar" "monster" [])
+            pid1   (n/spawn node (fn []
+                                   (a/receive
+                                    m (deliver result m))))
+            a-name (n/register node pid1 'actor)]
+
+        (Thread/sleep 1000)
+
+        (n/send-registered-message node 'ignored-pid 'actor "bar@127.0.0.1"
+                                   'success)
+
+        (is (= 'success (deref result 100 'failed))))))
+
+  (testing "local message to non-existing process doesn't kill everything"
+    (with-redefs [sliver.protocol/send-reg-message
+                  (fn [& _]
+                    (is false "messages should not hit the wire"))]
+      (let [node   (n/node "bar" "monster" [])]
+        ;; send to non-existing process
+        (n/send-registered-message node (n/pid node) 'foobar "bar@127.0.0.1"
+                                   'success)
+
+        ;; only to get an assertion here
+        (is true))))
+
+  (testing "non-local message should hit the wire"
+    (h/epmd "-daemon" "-relaxed_command_check")
+
+    (let [messages-sent (atom 0)]
+      (with-redefs [sliver.protocol/send-reg-message
+                    (fn [& _]
+                      (reset! messages-sent 1))]
+        (let [bar (n/node "bar" "monster" [])
+              foo (n/node "foo" "monster" [])]
+
+          (n/start foo)
+          (n/connect bar foo)
+
+          (n/send-registered-message bar (n/pid bar) 'actor "foo@127.0.0.1"
+                                     'success)
+          (is (= 1 @messages-sent))
+
+          (n/stop foo))))
+
+    (h/epmd "-kill"))
+
+  (testing "non-local message should hit the wire even if there's a local process"
+    (h/epmd "-daemon" "-relaxed_command_check")
+    (let [messages-sent (atom 0)]
+      (with-redefs [sliver.protocol/send-reg-message
+                    (fn [& _]
+                      (reset! messages-sent 1))]
+        (let [bar (n/node "bar" "monster" [])
+              foo (n/node "foo" "monster" [])
+              _   (n/register bar (n/spawn bar #(+ 1 1)) 'actor)]
+
+          (n/start foo)
+          (n/connect bar foo)
+
+          (n/send-registered-message bar (n/pid bar) 'actor "foo@127.0.0.1"
+                                     'success)
+          (is (= 1 @messages-sent))
+
+          (n/stop foo))))
+    (h/epmd "-kill"))
+
+  (testing "local registered ping pong doesn't hit the wire"
+    (with-redefs [sliver.protocol/send-message
+                  (fn [& _]
+                    (is false "messages should not hit the wire"))]
+      (let [result (atom 0)
+            node   (n/node "bar" "monster" [])
+            pid1   (n/spawn node (fn []
+                                   (n/register node (n/self node) 'pong)
+                                   (a/receive
+                                    'ping (n/send-registered-message node
+                                                                     'ignored
+                                                                     'ping
+                                                                     "bar@127.0.0.1"
+                                                                     'pong))))]
+        (n/spawn node (fn []
+                        (n/register node (n/self node) 'ping)
+                        (n/send-registered-message node 'ignored 'pong
+                                                   "bar@127.0.0.1" 'ping)
+                        (a/receive
+                         'pong (reset! result 1))))
+
+        ;; because race condition between actors ping-ponging and assertion
+        (Thread/sleep 1000)
+
+        (is (= 1 @result))))))
