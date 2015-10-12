@@ -177,6 +177,22 @@
       (is (= name actor-name1))
       (is (nil? actor-name2))))
 
+  (testing "registering a process with an already registered name fails (many)"
+    (let [node        (n/node "bar" "monster" [])
+          name        'clint-eastwood
+          successful  (atom 0)
+          failed      (atom 0)
+          actor-fn    (fn []
+                        (if-let [name (n/register node (n/self node) name)]
+                          (swap! successful inc)
+                          (swap! failed inc)))]
+      (doall
+       (for [_ (range 100000)]
+         (n/spawn node actor-fn)))
+
+      (is (and (= 1 @successful)
+               (= 99999 @failed)))))
+
   (testing "can't register with nil name"
     (let [node       (n/node "bar" "monster" [])
           name       nil
