@@ -129,16 +129,17 @@ running) and starts listening for incoming connections.")
 
   ;; pid(0, 42, 0) ! message
   (send-message [node pid message]
-    (let [other-node-name (util/plain-name (name (:node pid)))
-          other-node      {:node-name other-node-name}]
-      (if (= other-node-name (util/plain-name node))
-        (when-let [actor (actor-for node pid)] ;; if actor doesn't exist, ignore
-          (a/! actor message))
-        (if-let [connection (get-connection node other-node)]
-          (p/send-message connection pid message)
-          (do (timbre/debug
-               (format "Couldn't find connection for %s. Please double check this."
-                       other-node-name)))))))
+    (when pid
+      (let [other-node-name (util/plain-name (name (:node pid)))
+            other-node      {:node-name other-node-name}]
+        (if (= other-node-name (util/plain-name node))
+          (when-let [actor (actor-for node pid)] ;; if actor doesn't exist, ignore
+            (a/! actor message))
+          (if-let [connection (get-connection node other-node)]
+            (p/send-message connection pid message)
+            (do (timbre/debug
+                 (format "Couldn't find connection for %s. Please double check this."
+                         other-node-name))))))))
 
   ;; equivalent to {to, 'name@host'} ! message
   (send-registered-message [node from to other-node message]

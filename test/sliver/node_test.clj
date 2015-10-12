@@ -95,6 +95,12 @@
       (is (= 'did-it (deref result 100 'didnt-do-it))))))
 
 (deftest send-messages-to-local-processes-test
+
+  (testing "nil pid does not break everything"
+    (let [node (n/node "bar" "monster" [])]
+      (n/send-message node nil 'hai)
+      (is true)))
+
   (testing "local message doesn't hit the wire"
     (with-redefs [sliver.protocol/send-message
                   (fn [& _]
