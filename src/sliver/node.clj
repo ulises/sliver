@@ -31,6 +31,10 @@ running) and starts listening for incoming connections.")
   (send-registered-message [node from-pid process-name other-node message]
     "Sends a registered message to the process process-name@other-node.")
 
+  (! [node maybe-actor-or-pid message]
+    "Sends a message to either a local actor, a registered remote actor, or a pid.
+It abstracts over send-message and send-registered-message.")
+
   (pid [node]
     "Creates a new pid.")
 
@@ -66,6 +70,8 @@ running) and starts listening for incoming connections.")
 
   (handle-connection [node connection]
     "Handles a connection after the handshake has been successful"))
+
+(declare !*)
 
 (defrecord Node [node-name host cookie handlers state pid-tracker ref-tracker
                  actor-tracker reverse-actor-tracker actor-registry]
@@ -155,6 +161,9 @@ running) and starts listening for incoming connections.")
              (format "Couldn't find connection for %s. Please double check this."
                      other-node))))))
 
+  (! [node maybe-actor-or-pid message]
+    (!* node maybe-actor-or-pid message))
+
   ;; creates a new pid. This is internal, and is likely to be used in
   ;; conjunction with some form of custom spawn implementation
   (pid [node]
@@ -227,6 +236,35 @@ running) and starts listening for incoming connections.")
        (let [next-creation (inc creation)]
          (alter ref-tracker assoc :creation next-creation)
          new-reference)))))
+
+(defmulti !* (fn [node maybe-pid-or-actor message] (type maybe-pid-or-actor)))
+
+(defn- !-name [node actor-name message]
+  (let [actor-pid (whereis node actor-name)]
+    (send-message node actor-pid message)))
+
+(defmethod !* clojure.lang.Symbol
+  [node actor-name message]
+  (!-name node actor-name message))
+
+(defmethod !* clojure.lang.Keyword
+  [node actor-name message]
+  (!-name node actor-name message))
+
+(defmethod !* java.lang.String
+  [node actor-name message]
+  (!-name node actor-name message))
+
+(defmethod !* borges.type.Pid
+  [node pid message]
+  (send-message node pid message))
+
+(defmethod !* clojure.lang.PersistentVector
+  [node [actor other-node] message]
+  (timbre/debug "Sending reg msg to:" actor " on " other-node)
+  (send-registered-message node (self node) actor other-node message))
+
+(defmethod !* nil [_ _ _])
 
 (defn node [name cookie handlers]
   (let [[node-name host] (util/maybe-split name)]

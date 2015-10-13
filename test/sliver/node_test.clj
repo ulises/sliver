@@ -330,3 +330,112 @@
         (Thread/sleep 1000)
 
         (is (= 1 @result))))))
+
+(deftest !-send-dwim-test
+  (testing "! sends to local actor"
+    (let [test-fn
+          (fn [name]
+            (let [result      (promise)
+                  registered? (promise)
+                  node        (n/node "bar" "monster" [])
+                  _pid        (n/spawn node (fn []
+                                              (n/register node (n/self node) name)
+                                              (deliver registered? true)
+                                              (a/receive 'hai (deliver result true))))]
+              @registered?
+
+              ;; sends message to locally registered actor
+              (with-redefs [sliver.protocol/send-message     (fn [& _]
+                                                               (is false
+                                                                   "should not hit the wire"))
+                            sliver.protocol/send-reg-message (fn [& _]
+                                                               (is false
+                                                                   "should not hit the wire"))]
+                (n/! node name 'hai))
+
+              (is (deref result 100 false))))]
+
+      (dorun
+       (for [name ['actor :actor "actor"]]
+         (test-fn name)))))
+
+  (testing "! doesn't barf if local actor doesn't exist"
+    (with-redefs [sliver.protocol/send-message     (fn [& _]
+                                                     (is false
+                                                         "should not hit the wire"))
+                  sliver.protocol/send-reg-message (fn [& _]
+                                                     (is false
+                                                         "should not hit the wire"))]
+      (let [node (n/node "bar" "monster" [])]
+        (n/! node 'actor 'hai)
+        (is true))))
+
+  (testing "! doesn't barf if actor is nil"
+    (with-redefs [sliver.protocol/send-message     (fn [& _]
+                                                     (is false
+                                                         "should not hit the wire"))
+                  sliver.protocol/send-reg-message (fn [& _]
+                                                     (is false
+                                                         "should not hit the wire"))]
+      (let [node (n/node "bar" "monster" [])]
+        (n/! node nil 'hai)
+        (is true))))
+
+  (testing "! sends to local pid"
+    (let [result (promise)
+          node   (n/node "bar" "monster" [])
+          pid    (n/spawn node (fn []
+                                 (a/receive _ (deliver result true))))]
+      (with-redefs [sliver.protocol/send-message     (fn [& _]
+                                                       (is false
+                                                           "should not hit the wire"))
+                    sliver.protocol/send-reg-message (fn [& _]
+                                                       (is false
+                                                           "should not hit the wire"))]
+        (n/! node pid 'hai))
+      (is (deref result 100 false))))
+
+  (testing "! sends to remote pid"
+    (h/epmd "-daemon" "-relaxed_command_check")
+    (let [result (promise)
+          bar    (n/node "bar" "monster" [])
+          foo    (n/node "foo" "monster" [])
+          pid    (n/pid foo)]
+      (n/start foo)
+      (n/connect bar foo)
+
+      (with-redefs [sliver.protocol/send-message (fn [_conn p m]
+                                                   (if (= p pid)
+                                                     (deliver result true)))]
+        (n/! bar pid 'hai))
+
+      (is (deref result 100 false))
+
+      (n/stop foo))
+    (h/epmd "-kill"))
+
+  (testing "! sends to remote actor"
+    (let [test-fn (fn [name]
+                    (h/epmd "-daemon" "-relaxed_command_check")
+                    (let [result (promise)
+                          bar    (n/node "bar" "monster" [])
+                          foo    (n/node "foo" "monster" [])]
+                      (n/start foo)
+                      (n/connect bar foo)
+
+                      ;; need to call from within actor because internally
+                      ;; this uses (self node)
+                      (n/spawn bar (fn []
+                                     (with-redefs [sliver.protocol/send-reg-message
+                                                   (fn [_conn from to m]
+                                                     (if (= to name)
+                                                       (deliver result true)))]
+                                       (n/! bar [name "foo@127.0.0.1"] 'hai))))
+
+                      (is (deref result 100 false))
+
+                      (n/stop foo))
+                    (h/epmd "-kill"))]
+      (dorun
+       (for [n ['actor :actor "actor"]]
+           (test-fn n))))))
