@@ -41,6 +41,9 @@ It abstracts over send-message and send-registered-message.")
   (track-pid [node pid actor]
     "Keeps pids connected to actors")
 
+  (untrack [node pid]
+    "Stops tracking the pid-actor relationship")
+
   (actor-for [node pid]
     "Returns the actor linked to pid")
 
@@ -185,16 +188,20 @@ It abstracts over send-message and send-registered-message.")
                 :serial next-serial)
          new-pid))))
 
-  ;; should have a reaper thread/actor that periodically traverses the list of
-  ;; tracked actors, and claims those that are done/dead.
   (track-pid [node pid actor]
     (timbre/debug "Tracking: {" pid " " actor "}")
-    ;; should use refs here to coordinate both changes? I reckon 2 atoms should
-    ;; be fine.
     (dosync
      (alter actor-tracker assoc pid actor)
      (alter reverse-actor-tracker assoc actor pid))
     pid)
+
+  (untrack [node pid]
+    (timbre/debug "Untracking: " pid)
+    (dosync
+     (let [actor (actor-for node pid)]
+       (alter actor-tracker dissoc pid)
+       (alter reverse-actor-tracker dissoc actor)
+       pid)))
 
   (actor-for [node pid]
     (get @actor-tracker pid))

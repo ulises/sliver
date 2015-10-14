@@ -439,3 +439,15 @@
       (dorun
        (for [n ['actor :actor "actor"]]
            (test-fn n))))))
+
+(deftest dead-actor-reaper-test
+  (testing "spawned actors are not tracked once they're untracked"
+    (let [node (n/node "bar" "monster" [])
+          pid  (n/spawn node (fn [] (+ 1 1)))]
+      (n/untrack node pid)
+      (is (nil? (n/actor-for node pid)))))
+
+  (testing "untracking nil doesn't make everything barf"
+    (let [node (n/node "bar" "monster" [])]
+      (n/untrack node nil)
+      (is (nil? (n/actor-for node nil))))))
