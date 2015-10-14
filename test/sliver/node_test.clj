@@ -480,4 +480,59 @@
   (testing "monitoring non-existent process doesn't kill everything"
     (let [node (n/node "bar" "monster" [])]
       (n/monitor node (n/pid node))
-      (is true))))
+      (is true)))
+
+  (testing "monitoring is stackable, i.e. N messages are delivered on death/done"
+    (let [stacked? (promise)
+          node     (n/node "bar" "monster" [])
+          monitor  (n/spawn node
+                            (fn []
+                              (let [spawned (n/spawn node (fn []
+                                                            (Strand/sleep 500)
+                                                            (+ 1 1)))]
+                                (n/monitor node spawned)
+                                (n/monitor node spawned)
+                                (a/receive
+                                 _ (a/receive
+                                    _ (deliver stacked? true))))))]
+      (is @stacked?)))
+
+  (testing "unwatching before death -> no messages"
+    (let [demonitored? (promise)
+          node         (n/node "bar" "monster" [])
+          monitor      (n/spawn node
+                                (fn []
+                                  (let [spawned (n/spawn node (fn []
+                                                                (Strand/sleep 1000)
+                                                                (+ 1 1)))
+                                        monitor (n/monitor node spawned)]
+                                    (n/demonitor node spawned monitor)
+                                    (a/receive
+                                     [:exit _ _ _] (deliver demonitored? false)
+                                     :after 1500   (deliver demonitored? true)))))]
+      (is @demonitored?)))
+
+  (testing "demonitoring nil doesn't barf"
+    (let [ok?     (promise)
+          node    (n/node "bar" "monster" [])
+          monitor (n/spawn node
+                           (fn []
+                             (n/demonitor node (n/pid node) nil)
+                             (deliver ok? true)))]
+      (is @ok?)))
+
+  (testing "double demonitoring doesn't barf"
+    (let [demonitored? (promise)
+          node         (n/node "bar" "monster" [])
+          monitor      (n/spawn node
+                                (fn []
+                                  (let [spawned (n/spawn node (fn []
+                                                                (Strand/sleep 1000)
+                                                                (+ 1 1)))
+                                        monitor (n/monitor node spawned)]
+                                    (n/demonitor node spawned monitor)
+                                    (n/demonitor node spawned monitor)
+                                    (a/receive
+                                     [:exit _ _ _] (deliver demonitored? false)
+                                     :after 1500   (deliver demonitored? true)))))]
+      (is @demonitored?))))
