@@ -50,6 +50,10 @@ It abstracts over send-message and send-registered-message.")
   (demonitor [node pid monitor]
     "Demonitor process")
 
+  (link [node pid]
+        [node pid1 pid2]
+    "Links (self) to pid")
+
   (actor-for [node pid]
     "Returns the actor linked to pid")
 
@@ -216,6 +220,15 @@ It abstracts over send-message and send-registered-message.")
   (demonitor [node pid monitor]
     (when-let [actor (actor-for node pid)]
       (a/unwatch! actor monitor)))
+
+  (link [node pid]
+    (when-let [actor (actor-for node pid)]
+      (a/link! actor)))
+
+  (link [node pid1 pid2]
+    (when-let [actor1 (actor-for node pid1)]
+      (when-let [actor2 (actor-for node pid2)]
+       (a/link! actor1 actor2))))
 
   (actor-for [node pid]
     (get @actor-tracker pid))

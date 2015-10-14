@@ -536,3 +536,51 @@
                                      [:exit _ _ _] (deliver demonitored? false)
                                      :after 1500   (deliver demonitored? true)))))]
       (is @demonitored?))))
+
+(deftest link-processes-test
+  (testing "deaths propagate"
+    (let [all-dead? (promise)
+          node      (n/node "bar" "monster" [])
+          chain     (fn [n f]
+                      (if (zero? n)
+                        (a/receive
+                         _ (deliver all-dead? false)
+                         :after 500 (/ 1 0))
+                        (let [spawned (n/spawn node
+                                               (fn []
+                                                 (f (dec n) f)))]
+                          (n/link node spawned)
+                          (a/receive _ (deliver all-dead? false)))))]
+
+      (n/spawn node #(chain 5 chain))
+
+      (is (deref all-dead? 1000 true))))
+
+  (testing "link to nil doesn't barf"
+    (let [barfed? (promise)
+          node    (n/node "bar" "monster" [])]
+      (n/spawn node
+               (fn []
+                 (n/link node nil)
+                 (deliver barfed? false)))
+      (is (not (deref barfed? 1000 true)))))
+
+  (testing "link 2 independent processes"
+    (let [all-dead? (promise)
+          node      (n/node "bar" "monster" [])
+          pid1 (n/spawn node #(a/receive _ (deliver all-dead? false)
+                                         :after 500 (/ 1 0)))
+          pid2 (n/spawn node #(a/receive _ (deliver all-dead? false)))]
+
+      (n/spawn node #(n/link node pid1 pid2))
+
+      (is (deref all-dead? 1000 true))))
+
+  (testing "link to either nil doesn't barf"
+    (let [barfed? (promise)
+          node    (n/node "bar" "monster" [])]
+      (n/spawn node
+               (fn []
+                 (n/link node (n/pid node) (n/pid node))
+                 (deliver barfed? false)))
+      (is (not (deref barfed? 1000 true))))))
