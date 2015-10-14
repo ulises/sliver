@@ -44,6 +44,9 @@ It abstracts over send-message and send-registered-message.")
   (untrack [node pid]
     "Stops tracking the pid-actor relationship")
 
+  (monitor [node pid]
+    "Monitor a process")
+
   (actor-for [node pid]
     "Returns the actor linked to pid")
 
@@ -202,6 +205,10 @@ It abstracts over send-message and send-registered-message.")
        (alter actor-tracker dissoc pid)
        (alter reverse-actor-tracker dissoc actor)
        pid)))
+
+  (monitor [node pid]
+    (when-let [actor (actor-for node pid)]
+      (a/watch! actor)))
 
   (actor-for [node pid]
     (get @actor-tracker pid))

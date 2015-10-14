@@ -2,7 +2,8 @@
   (:require [clojure.test :refer :all]
             [sliver.node :as n]
             [co.paralleluniverse.pulsar.actors :as a]
-            [sliver.test-helpers :as h]))
+            [sliver.test-helpers :as h])
+  (:import [co.paralleluniverse.strands Strand]))
 
 (defn- epmd-erl-fixture [f]
   (h/epmd "-daemon" "-relaxed_command_check")
@@ -451,3 +452,32 @@
     (let [node (n/node "bar" "monster" [])]
       (n/untrack node nil)
       (is (nil? (n/actor-for node nil))))))
+
+(deftest monitor-processes-test
+  (testing "monitoring process receives [:exit ref actor nil] when monitored finishes"
+    (let [result  (promise)
+          node    (n/node "bar" "monster" [])
+          monitor (n/spawn node
+                           (fn []
+                             (n/monitor node
+                                        (n/spawn node #(+ 1 1)))
+                             (a/receive m (deliver result m))))]
+      (is (and (= :exit (first @result))
+               (nil? (last @result))))))
+
+  (testing "monitoring process receives [:exit ref actor Throwable] when monitored dies"
+    (let [result  (promise)
+          node    (n/node "bar" "monster" [])
+          monitor (n/spawn node
+                           (fn []
+                             (n/monitor node
+                                        (n/spawn node
+                                                 #(throw (RuntimeException. "arse"))))
+                             (a/receive m (deliver result m))))]
+      (is (= :exit (first @result)))
+      (is (= RuntimeException (class (last @result))))))
+
+  (testing "monitoring non-existent process doesn't kill everything"
+    (let [node (n/node "bar" "monster" [])]
+      (n/monitor node (n/pid node))
+      (is true))))
