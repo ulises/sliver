@@ -3,7 +3,8 @@
             [clojure.java.io :as io]
             [clojure.java.shell :refer [sh]]
             [clojure.test :refer [is]])
-  (:import [java.nio ByteBuffer]))
+  (:import [java.nio ByteBuffer]
+           [co.paralleluniverse.strands Strand]))
 
 (defn file->bb [filename]
   (let [file (io/file (io/resource filename))
@@ -19,7 +20,7 @@
 
 (defn epmd [& args]
   (apply sh (conj args "epmd"))
-  (Thread/sleep 100))
+  (Strand/sleep 100))
 
 (defn epmd-port [name]
   (let [o          (:out (sh "epmd" "-names"))
@@ -34,4 +35,4 @@
 (defn escript [script]
   (.start (ProcessBuilder. [script]))
   ;; give the erlang vm a chance to boot
-  (Thread/sleep 1000))
+  (Strand/sleep 1000))
