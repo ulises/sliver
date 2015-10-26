@@ -45,7 +45,7 @@
 (defn send-message
   [^FiberSocketChannel connection pid message]
   (timbre/debug
-   (format "Sent %s bytes"
+   (format "SEND-MESSAGE: Sent %s bytes"
            (tcp/send-bytes connection
                            (pass-through-message [2 (symbol "") pid]
                                                  message)))))
@@ -53,7 +53,7 @@
 (defn send-reg-message
   [^FiberSocketChannel connection from-pid to message]
   (timbre/debug
-   (format "Sent %s bytes"
+   (format "SEND-REG-MESSAGE: Sent %s bytes"
            (tcp/send-bytes connection
                            (pass-through-message [(int 6) from-pid (symbol "")
                                                   to]

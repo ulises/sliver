@@ -4,6 +4,7 @@
             [sliver.epmd :as epmd ]
             [sliver.tcp :as tcp]
             [sliver.util :as util]
+            [sliver.node-interface :as ni]
             [taoensso.timbre :as timbre])
   (:import [java.nio ByteBuffer]
            [co.paralleluniverse.fibers.io FiberSocketChannel]))
@@ -199,7 +200,7 @@
     (timbre/debug "Connection from:" a-name)
     ;; it's sad I can't use node/get-connection for this because of
     ;; circular deps ;_;
-    (if (get @(:state node) (util/plain-name a-name))
+    (if (ni/get-writer node a-name)
       (do (timbre/debug "Connection for" a-name "is alive.")
           (send-status connection :alive)
           ;; here one should check for true/false in case the other node

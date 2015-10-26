@@ -39,9 +39,9 @@
       ;; connect from native node
       (h/escript "resources/connect-from-native.escript")
 
-      (is (get @(:state node) other-node))
-      (ni/stop node)
+      (is (ni/whereis node 'foo-writer))
 
+      (ni/stop node)
       (h/epmd "-kill")))
 
   (testing "more than one native erlang node can connect"
@@ -58,8 +58,8 @@
       (h/escript "resources/connect-from-native-node-bar.escript")
       (Strand/sleep 1000)
 
-      (is (= ["bar" "foo" :epmd-socket :server-socket]
-             (keys @(:state node))))
+      (is (ni/whereis node 'foo-writer))
+      (is (ni/whereis node 'bar-writer))
 
       (ni/stop node)
       (h/epmd "-kill")))
@@ -74,8 +74,7 @@
       (ni/start foo-node)
       (ni/connect bar-node foo-node)
 
-      (is (= ["bar" :epmd-socket :server-socket]
-             (keys @(:state foo-node))))
+      (is (ni/whereis foo-node 'bar-writer))
 
       (ni/stop foo-node)
       (ni/stop bar-node)
