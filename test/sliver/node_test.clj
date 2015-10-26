@@ -27,8 +27,7 @@
   (testing "connect using node name"
     (let [node     (n/node "bar@127.0.0.1" "monster" [])
           foo-node (n/node "foo@127.0.0.1" "monster" [])]
-      (is @(:state (ni/connect node foo-node)))
-      (ni/stop node))))
+      (is @(:state (ni/connect node foo-node))))))
 
 (deftest test-node-connects-to-multiple-erlang-nodes
   (testing "connect using node name"
@@ -38,12 +37,8 @@
       (ni/connect node foo)
       (ni/connect node foo2)
 
-      (is (or (= '("foo" "foo2")
-                 (keys @(:state node)))
-              (= '("foo2" "foo")
-                 (keys @(:state node)))))
-
-      (ni/stop node))))
+      (is (ni/whereis node 'foo-writer))
+      (is (ni/whereis node 'foo2-writer)))))
 
 (deftest test-multiple-nodes-can-coexist
   (testing "connecting from several nodes to same erlang node"
@@ -53,13 +48,8 @@
       (ni/connect node1 foo)
       (ni/connect node2 foo)
 
-      (is (= '("foo")
-             (keys @(:state node1))))
-      (is (= '("foo")
-             (keys @(:state node2))))
-
-      (ni/stop node1)
-      (ni/stop node2))))
+      (is (ni/whereis node1 'foo-writer))
+      (is (ni/whereis node2 'foo-writer)))))
 
 (deftest test-pid-minting
   (testing "creating a new pid increments the pid count"
@@ -272,49 +262,44 @@
         (is true))))
 
   (testing "non-local message should hit the wire"
-    (h/epmd "-daemon" "-relaxed_command_check")
-
     (let [messages-sent (atom 0)]
       (with-redefs [sliver.protocol/send-reg-message
                     (fn [& _]
                       (reset! messages-sent 1))]
-        (let [bar (n/node "bar" "monster" [])
-              foo (n/node "foo" "monster" [])]
+        (let [bar  (n/node "bar" "monster" [])
+              spaz (n/node "spaz" "monster" [])]
 
-          (ni/start foo)
-          (ni/connect bar foo)
+          (ni/start spaz)
+          (ni/connect bar spaz)
 
-          (ni/send-registered-message bar (ni/pid bar) 'actor "foo@127.0.0.1"
+          (ni/send-registered-message bar (ni/pid bar) 'actor "spaz@127.0.0.1"
                                      'success)
           (is (= 1 @messages-sent))
 
-          (ni/stop foo))))
-    (h/epmd "-kill"))
+          (ni/stop spaz)))))
 
   (testing "non-local message should hit the wire even if there's a local process"
-    (h/epmd "-daemon" "-relaxed_command_check")
     (let [messages-sent (atom 0)]
       (with-redefs [sliver.protocol/send-reg-message
                     (fn [& _]
                       (reset! messages-sent 1))]
-        (let [bar (n/node "bar" "monster" [])
-              foo (n/node "foo" "monster" [])
-              _   (ni/register bar (ni/spawn bar #(a/receive m :ok
-                                                           :after 5000 :ok))
-                              'actor)]
+        (let [bar  (n/node "bar" "monster" [])
+              spaz (n/node "spaz" "monster" [])
+              _    (ni/register bar (ni/spawn bar #(a/receive m :ok
+                                                              :after 5000 :ok))
+                                'actor)]
 
-          (ni/start foo)
+          (ni/start spaz)
 
-          (ni/connect bar foo)
+          (ni/connect bar spaz)
 
-          (ni/send-registered-message bar (ni/pid bar) 'actor "foo@127.0.0.1"
+          (ni/send-registered-message bar (ni/pid bar) 'actor "spaz@127.0.0.1"
                                      'success)
 
           (Strand/sleep 1000)
           (is (= 1 @messages-sent))
 
-          (ni/stop foo))))
-    (h/epmd "-kill"))
+          (ni/stop spaz)))))
 
   (testing "local registered ping pong doesn't hit the wire"
     (with-redefs [sliver.protocol/send-message
@@ -407,48 +392,42 @@
       (is (deref result 100 false))))
 
   (testing "! sends to remote pid"
-    (h/epmd "-daemon" "-relaxed_command_check")
     (let [result (promise)
           bar    (n/node "bar" "monster" [])
-          foo    (n/node "foo" "monster" [])
-          pid    (ni/pid foo)]
+          foo    (n/node "spaz" "monster" [(fn [_node _from _to msg]
+                                             (log/debug "FOO RECVD:" msg)
+                                             (if (= msg 'hai)
+                                               (deliver result true)))])]
       (ni/start foo)
       (ni/connect bar foo)
 
-      (with-redefs [sliver.protocol/send-message (fn [_conn p m]
-                                                   (if (= p pid)
-                                                     (deliver result true)))]
-        (ni/! bar pid 'hai))
+      (ni/! bar (ni/pid foo) 'hai)
 
-      (is (deref result 100 false))
+      (is (deref result 1000 false))
 
-      (ni/stop foo))
-    (h/epmd "-kill"))
+      (ni/stop foo)))
 
   (testing "! sends to remote actor"
-    (h/epmd "-daemon" "-relaxed_command_check")
     (let [result     (promise)
           bar        (n/node "bar" "monster" [])
-          foo        (n/node "foo" "monster"
+          spaz       (n/node "spaz" "monster"
                              [(fn [& _]
-                                (log/debug "Msg received...")
                                 (deliver result true))])
           actor-name 'actor]
 
-      (ni/start foo)
-      (ni/connect bar foo)
+      (ni/start spaz)
+      (ni/connect bar spaz)
 
       ;; need to call from within actor because internally
       ;; this uses (self node)
       (ni/spawn bar (fn []
                      (log/debug "Sending...")
-                     (ni/! bar [actor-name "foo@127.0.0.1"]
+                     (ni/! bar [actor-name "spaz@127.0.0.1"]
                           (into [] (range 1000)))))
 
       (is (deref result 10000 false))
 
-      (ni/stop foo))
-    (h/epmd "-kill")))
+      (ni/stop spaz))))
 
 (deftest dead-actor-reaper-test
   (testing "spawned actors are not tracked once they're untracked"

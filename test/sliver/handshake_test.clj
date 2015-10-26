@@ -205,7 +205,7 @@
     (let [handshake-status       (promise)
           alive-handshake-status (promise)
           cookie                 "monster"
-          node                   (n/node "foo@127.0.0.1" cookie [])
+          node                   (n/node "spaz@127.0.0.1" cookie [])
           bar-node               (n/node "bar@127.0.0.1" cookie [])]
 
       (ni/start node)

@@ -69,11 +69,8 @@ It abstracts over send-message and send-registered-message.")
   (pid-for [node actor]
     "Returns the pid linked to actor")
 
-  (save-connection [node other-node connection]
-    "Saves the connection to other-node")
-
-  (get-connection [node other-node]
-    "Gets the socket to other-node")
+  (get-writer [node other-node]
+    "Gets the writer handling the socket connected to other-node")
 
   (handle-connection [node connection other-node]
     "Handles a connection after the handshake has been successful"))

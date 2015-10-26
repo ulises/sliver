@@ -16,6 +16,12 @@
 
 (declare !*)
 
+(defn- writer-name [other-node]
+  (symbol (str (util/plain-name other-node) "-writer")))
+
+(defn- reader-name [other-node]
+  (symbol (str (util/plain-name other-node) "-reader")))
+
 (defrecord Node [node-name host cookie handlers state pid-tracker ref-tracker
                  actor-tracker reverse-actor-tracker actor-registry]
   ni/NodeP
@@ -26,26 +32,22 @@
       (ni/spawn node
                 #(let [{:keys [status connection]} (h/initiate-handshake node other-node)]
                    (if (= :ok status)
-                     (do (ni/save-connection node other-node connection)
-                         (ni/handle-connection node connection other-node)))
+                     (ni/handle-connection node connection other-node))
                    node)))))
 
-  (save-connection [node other-node connection]
-    (swap! state update-in [(util/plain-name other-node)]
-           assoc :connection connection))
-
-  (get-connection [node other-node]
-    (get-in @state [(util/plain-name other-node) :connection]))
+  (get-writer [node other-node]
+    (let [other-name (writer-name other-node)]
+      (ni/whereis node other-name)))
 
   (handle-connection [node connection other-node]
-    (let [other-name (util/plain-name other-node)
-          reader (ni/spawn
+    (let [reader (ni/spawn
                   node
                   #(do
                      (ni/register node (ni/self node)
-                                  (symbol (str other-name "-reader")))
-                     (timbre/debug (format "%s: Handling connection" (util/plain-name
-                                                                      node)))
+                                  (reader-name other-node))
+                     (timbre/debug (format "%s: Reader for %s"
+                                           (util/plain-name node)
+                                           (util/plain-name other-node)))
                      (p/do-loop connection
                                 (fn handler [[control message]]
                                   (let [[from to] (p/parse-control control)]
@@ -56,10 +58,23 @@
                   node
                   #(do
                      (ni/register node (ni/self node)
-                                  (symbol (str other-name "-writer")))
-                     (a/receive [:write bytes] (tcp/send-bytes connection
-                                                               bytes))))]
-      (ni/link node writer reader)))
+                                  (writer-name other-node))
+                     (timbre/debug (format "%s: Writer for %s"
+                                           (util/plain-name node)
+                                           (util/plain-name other-node)))
+                     (loop []
+                       (a/receive [m]
+                                  [:send-msg pid msg]
+                                  (do (p/send-message connection pid msg)
+                                      (recur))
+                                  [:send-reg-msg from to msg]
+                                  (do (p/send-reg-message connection from to
+                                                          msg)
+                                      (recur))
+                                  :else (do (timbre/debug "ELSE:" m)
+                                            (recur))))))]
+      (ni/link node writer reader)
+      :ok))
 
   (start [node]
     (let [name          (util/plain-name node)
@@ -71,7 +86,9 @@
                              (swap! state update-in [:server-socket] assoc
                                     :connection server)
                              (loop []
-                               (timbre/debug "Accepting connections...")
+                               (timbre/debug (format
+                                              "%s: Accepting connections on %s"
+                                              name port))
                                (let [conn (.accept server)]
                                  (timbre/debug "Accepted connection:" conn)
                                  (let [{:keys [status connection other-node]}
@@ -80,8 +97,6 @@
                                      (do (timbre/debug "Connection established."
                                                        " Saving to:"
                                                        other-node)
-                                         (ni/save-connection node other-node
-                                                             connection)
                                          (ni/handle-connection node
                                                                connection
                                                                other-node))
@@ -117,10 +132,10 @@
         (if (= other-node-name (util/plain-name node))
           (when-let [actor (ni/actor-for node pid)] ;; if actor doesn't exist, ignore
             (a/! actor message))
-          (if-let [connection (ni/get-connection node other-node)]
-            (p/send-message connection pid message)
+          (if-let [writer-pid (ni/get-writer node other-node)]
+            (ni/send-message node writer-pid [:send-msg pid message])
             (do (timbre/debug
-                 (format "Couldn't find connection for %s. Please double check this."
+                 (format "Couldn't find writer for %s. Please double check this."
                          other-node-name))))))))
 
   ;; equivalent to {to, 'name@host'} ! message
@@ -131,10 +146,10 @@
         (do (timbre/debug "Sending " message " to: " to " -- " (ni/actor-for node pid))
             (a/! (ni/actor-for node pid) message))
         (do (timbre/debug "WARNING: couldn't find local actor " to)))
-      (if-let [connection (ni/get-connection node other-node)]
-        (p/send-reg-message connection from to message)
+      (if-let [writer-pid (ni/get-writer node other-node)]
+        (ni/send-message node writer-pid [:send-reg-msg from to message])
         (do (timbre/debug
-             (format "Couldn't find connection for %s. Please double check this."
+             (format "Couldn't find writer for %s. Please double check this."
                      other-node))))))
 
   (! [node maybe-actor-or-pid message]
