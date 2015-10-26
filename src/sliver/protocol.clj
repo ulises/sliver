@@ -6,7 +6,7 @@
             [sliver.util :as util]
             [taoensso.timbre :as timbre])
   (:import [java.nio ByteBuffer]
-           [java.nio.channels SocketChannel]))
+           [co.paralleluniverse.fibers.io FiberSocketChannel]))
 
 (defn- tick? [packet]
   (if-not (and (= 4 (.remaining ^ByteBuffer packet))
@@ -21,7 +21,8 @@
     (when (= 112 (take-ubyte packet))
       packet)))
 
-(defn do-loop [^SocketChannel conn handler-fn]
+(defn do-loop [^FiberSocketChannel conn handler-fn]
+  (timbre/debug "Looping...")
   (let [packet (tcp/read-connected-packet conn)]
     (if (tick? packet) (do (timbre/debug :tock)
                            (tcp/send-bytes conn tock)
@@ -42,7 +43,7 @@
     (tcp/concat-buffers header payload)))
 
 (defn send-message
-  [^SocketChannel connection pid message]
+  [^FiberSocketChannel connection pid message]
   (timbre/debug
    (format "Sent %s bytes"
            (tcp/send-bytes connection
@@ -50,7 +51,7 @@
                                                  message)))))
 
 (defn send-reg-message
-  [^SocketChannel connection from-pid to message]
+  [^FiberSocketChannel connection from-pid to message]
   (timbre/debug
    (format "Sent %s bytes"
            (tcp/send-bytes connection

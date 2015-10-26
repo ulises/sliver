@@ -1,8 +1,12 @@
 (ns sliver.node-test
   (:require [clojure.test :refer :all]
             [sliver.node :as n]
+            [sliver.node-interface :as ni]
             [co.paralleluniverse.pulsar.actors :as a]
-            [sliver.test-helpers :as h])
+            [co.paralleluniverse.pulsar.core :as c]
+            [sliver.test-helpers :as h]
+            [sliver.util :as util]
+            [taoensso.timbre :as log])
   (:import [co.paralleluniverse.strands Strand]))
 
 (defn- epmd-erl-fixture [f]
@@ -10,7 +14,7 @@
   (h/erl "foo@127.0.0.1" "monster")
   (h/erl "foo2@127.0.0.1" "monster")
 
-  (Thread/sleep 1000)
+  (Strand/sleep 1000)
 
   (f)
 
@@ -23,83 +27,85 @@
   (testing "connect using node name"
     (let [node     (n/node "bar@127.0.0.1" "monster" [])
           foo-node (n/node "foo@127.0.0.1" "monster" [])]
-      (is @(:state (n/connect node foo-node)))
-      (n/stop node))))
+      (is @(:state (ni/connect node foo-node)))
+      (ni/stop node))))
 
 (deftest test-node-connects-to-multiple-erlang-nodes
   (testing "connect using node name"
     (let [node (n/node "bar@127.0.0.1" "monster" [])
           foo  (n/node "foo@127.0.0.1" "monster" [])
           foo2 (n/node "foo2@127.0.0.1" "monster" [])]
-      (n/connect node foo)
-      (n/connect node foo2)
+      (ni/connect node foo)
+      (ni/connect node foo2)
 
-      (is (= '("foo2" "foo")
-             (keys @(:state node))))
+      (is (or (= '("foo" "foo2")
+                 (keys @(:state node)))
+              (= '("foo2" "foo")
+                 (keys @(:state node)))))
 
-      (n/stop node))))
+      (ni/stop node))))
 
 (deftest test-multiple-nodes-can-coexist
   (testing "connecting from several nodes to same erlang node"
     (let [node1 (n/node "bar@127.0.0.1" "monster" [])
           node2 (n/node "baz@127.0.0.1" "monster" [])
           foo   (n/node "foo@127.0.0.1" "monster" [])]
-      (n/connect node1 foo)
-      (n/connect node2 foo)
+      (ni/connect node1 foo)
+      (ni/connect node2 foo)
 
       (is (= '("foo")
              (keys @(:state node1))))
       (is (= '("foo")
              (keys @(:state node2))))
 
-      (n/stop node1)
-      (n/stop node2))))
+      (ni/stop node1)
+      (ni/stop node2))))
 
 (deftest test-pid-minting
   (testing "creating a new pid increments the pid count"
     (let [node (n/node "bar@127.0.0.1" "monster" [])]
-      (is (< (:pid (n/pid node)) (:pid (n/pid node))))
-      (n/stop node)))
+      (is (< (:pid (ni/pid node)) (:pid (ni/pid node))))
+      (ni/stop node)))
 
   (testing "creating too many pids rolls pid counter over"
     (let [node (n/node "bar@127.0.0.1" "monster" [])]
-      (let [a-pid (n/pid node)]
+      (let [a-pid (ni/pid node)]
         (doseq [_ (range 0xfffff)]
-          (n/pid node))
-        (is (< (:serial a-pid) (:serial (n/pid node))))
-        (n/stop node)))))
+          (ni/pid node))
+        (is (< (:serial a-pid) (:serial (ni/pid node))))
+        (ni/stop node)))))
 
 (deftest test-making-references
   (testing "creating a reference"
     (let [node      (n/node "bar@127.0.0.1" "monster" [])
-          pid       (n/pid node)
-          reference (n/make-ref node pid)]
+          pid       (ni/pid node)
+          reference (ni/make-ref node pid)]
       (is "bar@127.0.0.1" (:node reference))
       (is pid (:pid reference)))))
 
 (deftest spawn-test
   (testing "Spawning a process returns a pid"
     (let [node (n/node "bar" "monster" [])]
-      (is (= borges.type.Pid (type (n/spawn node #(+ 1 1)))))))
+      (is (= borges.type.Pid (type (ni/spawn node #(+ 1 1)))))))
 
   (testing "Spawned actor is tracked"
     (let [node  (n/node "bar" "monster" [])
-          pid   (n/spawn node #(+ 1 1))
-          actor (n/actor-for node pid)]
-      (is (n/actor-for node pid))
-      (is (= pid (n/pid-for node actor)))))
+          pid   (ni/spawn node #(+ 1 1))
+          actor (ni/actor-for node pid)]
+      (is (ni/actor-for node pid))
+      (is (= pid (ni/pid-for node actor)))))
 
   (testing "Spawned actor actually does work"
     (let [result (promise)
           node   (n/node "bar" "monster" [])
-          _ (n/spawn node #(deliver result 'did-it))]
+          _ (ni/spawn node #(deliver result 'did-it))]
       (is (= 'did-it (deref result 100 'didnt-do-it))))))
 
 (deftest send-messages-to-local-processes-test
 
   (testing "nil pid does not break everything"
     (let [node (n/node "bar" "monster" [])]
-      (n/send-message node nil 'hai)
+      (ni/send-message node nil 'hai)
       (is true)))
 
   (testing "local message doesn't hit the wire"
@@ -108,10 +114,10 @@
                     (is false "messages should not hit the wire"))]
       (let [result (promise)
             node   (n/node "bar" "monster" [])
-            pid1   (n/spawn node (fn []
+            pid1   (ni/spawn node (fn []
                                    (a/receive
                                     m (deliver result m))))]
-        (n/send-message node pid1 'success)
+        (ni/send-message node pid1 'success)
 
         (is (= 'success (deref result 100 'failed))))))
 
@@ -121,7 +127,7 @@
                     (is false "messages should not hit the wire"))]
       (let [node   (n/node "bar" "monster" [])]
         ;; send to non-existing process
-        (n/send-message node (n/pid node) 'success)
+        (ni/send-message node (ni/pid node) 'success)
         ;; only to get an assertion here
         (is true))))
 
@@ -131,17 +137,17 @@
                     (is false "messages should not hit the wire"))]
       (let [result (promise)
             node   (n/node "bar" "monster" [])
-            pid1   (n/spawn node (fn []
+            pid1   (ni/spawn node (fn []
                                    (a/receive
-                                    [from m] (n/send-message node from m))))]
-        (n/spawn node (fn []
-                        (n/send-message node pid1 [(n/self node)
+                                    [from m] (ni/send-message node from m))))]
+        (ni/spawn node (fn []
+                        (ni/send-message node pid1 [(ni/self node)
                                                    'ping])
                         (a/receive
                          'ping (deliver result 'success))))
 
         ;; because race condition between actors ping-ponging and assertion
-        (Thread/sleep 1000)
+        (Strand/sleep 1000)
 
         (is (= 'success (deref result 100 'failed)))))))
 
@@ -149,38 +155,38 @@
   (testing "self returns own pid"
     (let [result (promise)
           node   (n/node "bar" "monster" [])
-          pid1   (n/spawn node #(deliver result (n/self node)))]
+          pid1   (ni/spawn node #(deliver result (ni/self node)))]
       (is (= pid1 (deref result 100 'fail))))))
 
 (deftest register-named-processes-test
   (testing "can register a process with a name (symbol)"
     (let [node       (n/node "bar" "monster" [])
           name       'clint-eastwood
-          pid        (n/spawn node #(+ 1 1))
-          actor-name (n/register node pid name)]
+          pid        (ni/spawn node #(+ 1 1))
+          actor-name (ni/register node pid name)]
       (is (= name actor-name))))
 
   (testing "can register a process with a name (keyword)"
     (let [node       (n/node "bar" "monster" [])
           name       :clint-eastwood
-          pid        (n/spawn node #(+ 1 1))
-          actor-name (n/register node pid name)]
+          pid        (ni/spawn node #(+ 1 1))
+          actor-name (ni/register node pid name)]
       (is (= name actor-name))))
 
   (testing "can register a process with a name (string)"
     (let [node       (n/node "bar" "monster" [])
           name       "clint eastwood"
-          pid        (n/spawn node #(+ 1 1))
-          actor-name (n/register node pid name)]
+          pid        (ni/spawn node #(+ 1 1))
+          actor-name (ni/register node pid name)]
       (is (= name actor-name))))
 
   (testing "registering a process with an already registered name fails"
     (let [node        (n/node "bar" "monster" [])
           name        'clint-eastwood
-          pid         (n/spawn node #(+ 1 1))
-          pid2        (n/spawn node #(+ 1 1))
-          actor-name1 (n/register node pid name)
-          actor-name2 (n/register node pid2 name)]
+          pid         (ni/spawn node #(+ 1 1))
+          pid2        (ni/spawn node #(+ 1 1))
+          actor-name1 (ni/register node pid name)
+          actor-name2 (ni/register node pid2 name)]
       (is (= name actor-name1))
       (is (nil? actor-name2))))
 
@@ -190,23 +196,25 @@
           successful  (atom 0)
           failed      (atom 0)
           actor-fn    (fn []
-                        (if-let [name (n/register node (n/self node) name)]
+                        (if-let [name (ni/register node (ni/self node) name)]
                           (swap! successful inc)
                           (swap! failed inc)))]
       (doall
        (for [_ (range 100000)]
-         (n/spawn node actor-fn)))
+         (ni/spawn node actor-fn)))
 
-      (is (and (= 1 @successful)
-               (= 99999 @failed)))))
+      (Strand/sleep 1000)
+
+      (is (= 1 @successful))
+      (is (= 99999 @failed))))
 
   (testing "can't register with nil name"
     (let [node       (n/node "bar" "monster" [])
           name       nil
-          pid        (n/spawn node #(+ 1 1))
-          actor-name (n/register node pid name)]
+          pid        (ni/spawn node #(+ 1 1))
+          actor-name (ni/register node pid name)]
       (is (nil? actor-name))
-      (is (nil? (n/whereis node name)))))
+      (is (nil? (ni/whereis node name)))))
 
   ;; test for registering with anything else -> fail
   ;; in erlang valid names are just atoms, however global
@@ -216,23 +224,23 @@
   (testing "can find an actor based on its name (symbol)"
     (let [node       (n/node "bar" "monster" [])
           name       'clint-eastwood
-          pid        (n/spawn node #(+ 1 1))
-          actor-name (n/register node pid name)]
-      (is (= pid (n/whereis node actor-name)))))
+          pid        (ni/spawn node #(+ 1 1))
+          actor-name (ni/register node pid name)]
+      (is (= pid (ni/whereis node actor-name)))))
 
   (testing "can find an actor based on its name (keyword)"
     (let [node       (n/node "bar" "monster" [])
           name       :clint-eastwood
-          pid        (n/spawn node #(+ 1 1))
-          actor-name (n/register node pid name)]
-      (is (= pid (n/whereis node actor-name)))))
+          pid        (ni/spawn node #(+ 1 1))
+          actor-name (ni/register node pid name)]
+      (is (= pid (ni/whereis node actor-name)))))
 
   (testing "can find an actor based on its name (string)"
     (let [node       (n/node "bar" "monster" [])
           name       "clint eastwood"
-          pid        (n/spawn node #(+ 1 1))
-          actor-name (n/register node pid name)]
-      (is (= pid (n/whereis node actor-name))))))
+          pid        (ni/spawn node #(+ 1 1))
+          actor-name (ni/register node pid name)]
+      (is (= pid (ni/whereis node actor-name))))))
 
 (deftest send-messages-to-local-registered-processes-test
   (testing "local message doesn't hit the wire"
@@ -240,15 +248,13 @@
                   (fn [& _]
                     (is false "messages should not hit the wire"))]
       (let [result (promise)
-            node   (n/node "bar" "monster" [])
-            pid1   (n/spawn node (fn []
-                                   (a/receive
-                                    m (deliver result m))))
-            a-name (n/register node pid1 'actor)]
+            node   (n/node "bar" "monster" [])]
 
-        (Thread/sleep 1000)
+        (ni/spawn node (fn []
+                         (ni/register node (ni/self node) 'actor)
+                         (a/receive m (deliver result m))))
 
-        (n/send-registered-message node 'ignored-pid 'actor "bar@127.0.0.1"
+        (ni/send-registered-message node 'ignored-pid 'actor "bar@127.0.0.1"
                                    'success)
 
         (is (= 'success (deref result 100 'failed))))))
@@ -259,7 +265,7 @@
                     (is false "messages should not hit the wire"))]
       (let [node   (n/node "bar" "monster" [])]
         ;; send to non-existing process
-        (n/send-registered-message node (n/pid node) 'foobar "bar@127.0.0.1"
+        (ni/send-registered-message node (ni/pid node) 'foobar "bar@127.0.0.1"
                                    'success)
 
         ;; only to get an assertion here
@@ -275,15 +281,14 @@
         (let [bar (n/node "bar" "monster" [])
               foo (n/node "foo" "monster" [])]
 
-          (n/start foo)
-          (n/connect bar foo)
+          (ni/start foo)
+          (ni/connect bar foo)
 
-          (n/send-registered-message bar (n/pid bar) 'actor "foo@127.0.0.1"
+          (ni/send-registered-message bar (ni/pid bar) 'actor "foo@127.0.0.1"
                                      'success)
           (is (= 1 @messages-sent))
 
-          (n/stop foo))))
-
+          (ni/stop foo))))
     (h/epmd "-kill"))
 
   (testing "non-local message should hit the wire even if there's a local process"
@@ -294,16 +299,21 @@
                       (reset! messages-sent 1))]
         (let [bar (n/node "bar" "monster" [])
               foo (n/node "foo" "monster" [])
-              _   (n/register bar (n/spawn bar #(+ 1 1)) 'actor)]
+              _   (ni/register bar (ni/spawn bar #(a/receive m :ok
+                                                           :after 5000 :ok))
+                              'actor)]
 
-          (n/start foo)
-          (n/connect bar foo)
+          (ni/start foo)
 
-          (n/send-registered-message bar (n/pid bar) 'actor "foo@127.0.0.1"
+          (ni/connect bar foo)
+
+          (ni/send-registered-message bar (ni/pid bar) 'actor "foo@127.0.0.1"
                                      'success)
+
+          (Strand/sleep 1000)
           (is (= 1 @messages-sent))
 
-          (n/stop foo))))
+          (ni/stop foo))))
     (h/epmd "-kill"))
 
   (testing "local registered ping pong doesn't hit the wire"
@@ -312,23 +322,23 @@
                     (is false "messages should not hit the wire"))]
       (let [result (atom 0)
             node   (n/node "bar" "monster" [])
-            pid1   (n/spawn node (fn []
-                                   (n/register node (n/self node) 'pong)
+            pid1   (ni/spawn node (fn []
+                                   (ni/register node (ni/self node) 'pong)
                                    (a/receive
-                                    'ping (n/send-registered-message node
+                                    'ping (ni/send-registered-message node
                                                                      'ignored
                                                                      'ping
                                                                      "bar@127.0.0.1"
                                                                      'pong))))]
-        (n/spawn node (fn []
-                        (n/register node (n/self node) 'ping)
-                        (n/send-registered-message node 'ignored 'pong
+        (ni/spawn node (fn []
+                        (ni/register node (ni/self node) 'ping)
+                        (ni/send-registered-message node 'ignored 'pong
                                                    "bar@127.0.0.1" 'ping)
                         (a/receive
                          'pong (reset! result 1))))
 
         ;; because race condition between actors ping-ponging and assertion
-        (Thread/sleep 1000)
+        (Strand/sleep 1000)
 
         (is (= 1 @result))))))
 
@@ -339,8 +349,8 @@
             (let [result      (promise)
                   registered? (promise)
                   node        (n/node "bar" "monster" [])
-                  _pid        (n/spawn node (fn []
-                                              (n/register node (n/self node) name)
+                  _pid        (ni/spawn node (fn []
+                                              (ni/register node (ni/self node) name)
                                               (deliver registered? true)
                                               (a/receive 'hai (deliver result true))))]
               @registered?
@@ -352,7 +362,7 @@
                             sliver.protocol/send-reg-message (fn [& _]
                                                                (is false
                                                                    "should not hit the wire"))]
-                (n/! node name 'hai))
+                (ni/! node name 'hai))
 
               (is (deref result 100 false))))]
 
@@ -368,7 +378,7 @@
                                                      (is false
                                                          "should not hit the wire"))]
       (let [node (n/node "bar" "monster" [])]
-        (n/! node 'actor 'hai)
+        (ni/! node 'actor 'hai)
         (is true))))
 
   (testing "! doesn't barf if actor is nil"
@@ -379,13 +389,13 @@
                                                      (is false
                                                          "should not hit the wire"))]
       (let [node (n/node "bar" "monster" [])]
-        (n/! node nil 'hai)
+        (ni/! node nil 'hai)
         (is true))))
 
   (testing "! sends to local pid"
     (let [result (promise)
           node   (n/node "bar" "monster" [])
-          pid    (n/spawn node (fn []
+          pid    (ni/spawn node (fn []
                                  (a/receive _ (deliver result true))))]
       (with-redefs [sliver.protocol/send-message     (fn [& _]
                                                        (is false
@@ -393,7 +403,7 @@
                     sliver.protocol/send-reg-message (fn [& _]
                                                        (is false
                                                            "should not hit the wire"))]
-        (n/! node pid 'hai))
+        (ni/! node pid 'hai))
       (is (deref result 100 false))))
 
   (testing "! sends to remote pid"
@@ -401,66 +411,65 @@
     (let [result (promise)
           bar    (n/node "bar" "monster" [])
           foo    (n/node "foo" "monster" [])
-          pid    (n/pid foo)]
-      (n/start foo)
-      (n/connect bar foo)
+          pid    (ni/pid foo)]
+      (ni/start foo)
+      (ni/connect bar foo)
 
       (with-redefs [sliver.protocol/send-message (fn [_conn p m]
                                                    (if (= p pid)
                                                      (deliver result true)))]
-        (n/! bar pid 'hai))
+        (ni/! bar pid 'hai))
 
       (is (deref result 100 false))
 
-      (n/stop foo))
+      (ni/stop foo))
     (h/epmd "-kill"))
 
   (testing "! sends to remote actor"
-    (let [test-fn (fn [name]
-                    (h/epmd "-daemon" "-relaxed_command_check")
-                    (let [result (promise)
-                          bar    (n/node "bar" "monster" [])
-                          foo    (n/node "foo" "monster" [])]
-                      (n/start foo)
-                      (n/connect bar foo)
+    (h/epmd "-daemon" "-relaxed_command_check")
+    (let [result     (promise)
+          bar        (n/node "bar" "monster" [])
+          foo        (n/node "foo" "monster"
+                             [(fn [& _]
+                                (log/debug "Msg received...")
+                                (deliver result true))])
+          actor-name 'actor]
 
-                      ;; need to call from within actor because internally
-                      ;; this uses (self node)
-                      (n/spawn bar (fn []
-                                     (with-redefs [sliver.protocol/send-reg-message
-                                                   (fn [_conn from to m]
-                                                     (if (= to name)
-                                                       (deliver result true)))]
-                                       (n/! bar [name "foo@127.0.0.1"] 'hai))))
+      (ni/start foo)
+      (ni/connect bar foo)
 
-                      (is (deref result 100 false))
+      ;; need to call from within actor because internally
+      ;; this uses (self node)
+      (ni/spawn bar (fn []
+                     (log/debug "Sending...")
+                     (ni/! bar [actor-name "foo@127.0.0.1"]
+                          (into [] (range 1000)))))
 
-                      (n/stop foo))
-                    (h/epmd "-kill"))]
-      (dorun
-       (for [n ['actor :actor "actor"]]
-           (test-fn n))))))
+      (is (deref result 10000 false))
+
+      (ni/stop foo))
+    (h/epmd "-kill")))
 
 (deftest dead-actor-reaper-test
   (testing "spawned actors are not tracked once they're untracked"
     (let [node (n/node "bar" "monster" [])
-          pid  (n/spawn node (fn [] (+ 1 1)))]
-      (n/untrack node pid)
-      (is (nil? (n/actor-for node pid)))))
+          pid  (ni/spawn node (fn [] (+ 1 1)))]
+      (ni/untrack node pid)
+      (is (nil? (ni/actor-for node pid)))))
 
   (testing "untracking nil doesn't make everything barf"
     (let [node (n/node "bar" "monster" [])]
-      (n/untrack node nil)
-      (is (nil? (n/actor-for node nil))))))
+      (ni/untrack node nil)
+      (is (nil? (ni/actor-for node nil))))))
 
 (deftest monitor-processes-test
   (testing "monitoring process receives [:exit ref actor nil] when monitored finishes"
     (let [result  (promise)
           node    (n/node "bar" "monster" [])
-          monitor (n/spawn node
+          monitor (ni/spawn node
                            (fn []
-                             (n/monitor node
-                                        (n/spawn node #(+ 1 1)))
+                             (ni/monitor node
+                                        (ni/spawn node #(+ 1 1)))
                              (a/receive m (deliver result m))))]
       (is (and (= :exit (first @result))
                (nil? (last @result))))))
@@ -468,10 +477,10 @@
   (testing "monitoring process receives [:exit ref actor Throwable] when monitored dies"
     (let [result  (promise)
           node    (n/node "bar" "monster" [])
-          monitor (n/spawn node
+          monitor (ni/spawn node
                            (fn []
-                             (n/monitor node
-                                        (n/spawn node
+                             (ni/monitor node
+                                        (ni/spawn node
                                                  #(throw (RuntimeException. "arse"))))
                              (a/receive m (deliver result m))))]
       (is (= :exit (first @result)))
@@ -479,19 +488,19 @@
 
   (testing "monitoring non-existent process doesn't kill everything"
     (let [node (n/node "bar" "monster" [])]
-      (n/monitor node (n/pid node))
+      (ni/monitor node (ni/pid node))
       (is true)))
 
   (testing "monitoring is stackable, i.e. N messages are delivered on death/done"
     (let [stacked? (promise)
           node     (n/node "bar" "monster" [])
-          monitor  (n/spawn node
+          monitor  (ni/spawn node
                             (fn []
-                              (let [spawned (n/spawn node (fn []
+                              (let [spawned (ni/spawn node (fn []
                                                             (Strand/sleep 500)
                                                             (+ 1 1)))]
-                                (n/monitor node spawned)
-                                (n/monitor node spawned)
+                                (ni/monitor node spawned)
+                                (ni/monitor node spawned)
                                 (a/receive
                                  _ (a/receive
                                     _ (deliver stacked? true))))))]
@@ -500,13 +509,13 @@
   (testing "unwatching before death -> no messages"
     (let [demonitored? (promise)
           node         (n/node "bar" "monster" [])
-          monitor      (n/spawn node
+          monitor      (ni/spawn node
                                 (fn []
-                                  (let [spawned (n/spawn node (fn []
+                                  (let [spawned (ni/spawn node (fn []
                                                                 (Strand/sleep 1000)
                                                                 (+ 1 1)))
-                                        monitor (n/monitor node spawned)]
-                                    (n/demonitor node spawned monitor)
+                                        monitor (ni/monitor node spawned)]
+                                    (ni/demonitor node spawned monitor)
                                     (a/receive
                                      [:exit _ _ _] (deliver demonitored? false)
                                      :after 1500   (deliver demonitored? true)))))]
@@ -515,23 +524,23 @@
   (testing "demonitoring nil doesn't barf"
     (let [ok?     (promise)
           node    (n/node "bar" "monster" [])
-          monitor (n/spawn node
+          monitor (ni/spawn node
                            (fn []
-                             (n/demonitor node (n/pid node) nil)
+                             (ni/demonitor node (ni/pid node) nil)
                              (deliver ok? true)))]
       (is @ok?)))
 
   (testing "double demonitoring doesn't barf"
     (let [demonitored? (promise)
           node         (n/node "bar" "monster" [])
-          monitor      (n/spawn node
+          monitor      (ni/spawn node
                                 (fn []
-                                  (let [spawned (n/spawn node (fn []
+                                  (let [spawned (ni/spawn node (fn []
                                                                 (Strand/sleep 1000)
                                                                 (+ 1 1)))
-                                        monitor (n/monitor node spawned)]
-                                    (n/demonitor node spawned monitor)
-                                    (n/demonitor node spawned monitor)
+                                        monitor (ni/monitor node spawned)]
+                                    (ni/demonitor node spawned monitor)
+                                    (ni/demonitor node spawned monitor)
                                     (a/receive
                                      [:exit _ _ _] (deliver demonitored? false)
                                      :after 1500   (deliver demonitored? true)))))]
@@ -546,41 +555,41 @@
                         (a/receive
                          _ (deliver all-dead? false)
                          :after 500 (/ 1 0))
-                        (let [spawned (n/spawn node
+                        (let [spawned (ni/spawn node
                                                (fn []
                                                  (f (dec n) f)))]
-                          (n/link node spawned)
+                          (ni/link node spawned)
                           (a/receive _ (deliver all-dead? false)))))]
 
-      (n/spawn node #(chain 5 chain))
+      (ni/spawn node #(chain 5 chain))
 
       (is (deref all-dead? 1000 true))))
 
   (testing "link to nil doesn't barf"
     (let [barfed? (promise)
           node    (n/node "bar" "monster" [])]
-      (n/spawn node
+      (ni/spawn node
                (fn []
-                 (n/link node nil)
+                 (ni/link node nil)
                  (deliver barfed? false)))
       (is (not (deref barfed? 1000 true)))))
 
   (testing "link 2 independent processes"
     (let [all-dead? (promise)
           node      (n/node "bar" "monster" [])
-          pid1 (n/spawn node #(a/receive _ (deliver all-dead? false)
+          pid1 (ni/spawn node #(a/receive _ (deliver all-dead? false)
                                          :after 500 (/ 1 0)))
-          pid2 (n/spawn node #(a/receive _ (deliver all-dead? false)))]
+          pid2 (ni/spawn node #(a/receive _ (deliver all-dead? false)))]
 
-      (n/spawn node #(n/link node pid1 pid2))
+      (ni/spawn node #(ni/link node pid1 pid2))
 
       (is (deref all-dead? 1000 true))))
 
   (testing "link to either nil doesn't barf"
     (let [barfed? (promise)
           node    (n/node "bar" "monster" [])]
-      (n/spawn node
+      (ni/spawn node
                (fn []
-                 (n/link node (n/pid node) (n/pid node))
+                 (ni/link node (ni/pid node) (ni/pid node))
                  (deliver barfed? false)))
       (is (not (deref barfed? 1000 true))))))

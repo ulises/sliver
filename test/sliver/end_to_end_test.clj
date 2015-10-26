@@ -1,10 +1,14 @@
 (ns sliver.end-to-end-test
   (:require [clojure.test :refer :all]
+            [co.paralleluniverse.pulsar.actors :as a]
+            [co.paralleluniverse.pulsar.core :as c]
+            [sliver.node-interface :as ni]
             [sliver.node :as n]
             [sliver.epmd :as epmd]
             [sliver.test-helpers :as h]
             [sliver.util :as util]
-            [taoensso.timbre :as timbre]))
+            [taoensso.timbre :as timbre])
+  (:import [co.paralleluniverse.strands Strand]))
 
 (defn- handler
   [p]
@@ -17,11 +21,11 @@
     (h/epmd "-daemon" "-relaxed_command_check")
     (let [foo-node (n/node "foo@127.0.0.1" "monster" [])
           bar-node (n/node "bar@127.0.0.1" "monster" [])]
-      (n/start foo-node)
-      (n/connect bar-node foo-node)
+      (ni/start foo-node)
+      (ni/connect bar-node foo-node)
 
-      (n/stop foo-node)
-      (n/stop bar-node)
+      (ni/stop foo-node)
+      (ni/stop bar-node)
       (h/epmd "-kill")))
 
   (testing "native erlang nodes can connect to sliver nodes"
@@ -30,13 +34,13 @@
           other-node "foo"]
 
       ;; accept incoming connections
-      (n/start node)
+      (ni/start node)
 
       ;; connect from native node
       (h/escript "resources/connect-from-native.escript")
 
       (is (get @(:state node) other-node))
-      (n/stop node)
+      (ni/stop node)
 
       (h/epmd "-kill")))
 
@@ -45,17 +49,19 @@
     (let [node (n/node "spaz@127.0.0.1" "monster" [])]
 
       ;; accept incoming connections
-      (n/start node)
+      (ni/start node)
 
       ;; connect from native node foo
       (h/escript "resources/connect-from-native-node-foo.escript")
 
       ;; ;; connect from native node bar
       (h/escript "resources/connect-from-native-node-bar.escript")
+      (Strand/sleep 1000)
 
-      (is (= (keys @(:state node)) ["bar" "foo" :epmd-socket :server-socket]))
-      (n/stop node)
+      (is (= ["bar" "foo" :epmd-socket :server-socket]
+             (keys @(:state node))))
 
+      (ni/stop node)
       (h/epmd "-kill")))
 
   (testing "sucessful connections are kept around"
@@ -65,14 +71,14 @@
           bar-name "bar@127.0.0.1"
           foo-node (n/node foo-name "monster" [])
           bar-node (n/node bar-name "monster" [])]
-      (n/start foo-node)
-      (n/connect bar-node foo-node)
+      (ni/start foo-node)
+      (ni/connect bar-node foo-node)
 
       (is (= ["bar" :epmd-socket :server-socket]
              (keys @(:state foo-node))))
 
-      (n/stop foo-node)
-      (n/stop bar-node)
+      (ni/stop foo-node)
+      (ni/stop bar-node)
 
       (h/epmd "-kill"))))
 
@@ -84,20 +90,34 @@
           node       (n/node node-name "monster" [])
           plain-name (util/plain-name node)]
 
-      (n/start node)
-      (is (pos? (epmd/port (epmd/client) plain-name)))
-      (n/stop node)
+      (ni/start node)
 
+      (is (pos? (c/join
+                 (a/spawn
+                  #(epmd/port (epmd/client) plain-name)))))
+
+      (ni/stop node)
       (h/epmd "-kill")))
 
   (testing "nodes deregister with epmd on stop"
     (h/epmd "-daemon" "-relaxed_command_check")
 
-    (let [node-name "foo@127.0.0.1"
-          node      (n/node node-name "monster" [])]
-      (n/start node)
-      (n/stop node)
-      (is (zero? (epmd/port (epmd/client) node-name)))
+    (let [node-name  "foo@127.0.0.1"
+          node       (n/node node-name "monster" [])
+          plain-name (util/plain-name node)]
+
+      (ni/start node)
+
+      ;; check node registered
+      (is (pos? (c/join
+                 (a/spawn
+                  #(epmd/port (epmd/client) plain-name)))))
+
+      (ni/stop node)
+
+      (is (zero? (c/join
+                 (a/spawn
+                  #(epmd/port (epmd/client) plain-name)))))
 
       (h/epmd "-kill"))))
 
@@ -107,58 +127,59 @@
     (let [message-received (promise)
           _                (h/escript "resources/echo-server.escript")
           other-node       (n/node "foo" "monster" [])
-          node             (n/connect (n/node "bar@127.0.0.1" "monster"
+          node             (ni/connect (n/node "bar@127.0.0.1" "monster"
                                               [(handler message-received)])
                                       other-node)
-          pid              (n/pid node)
+          pid              (ni/pid node)
           message          'ohai2u]
-      (n/send-registered-message node pid 'echo other-node
-                                 [pid message])
+
+      (a/spawn #(ni/send-registered-message node pid 'echo other-node
+                                           [pid message]))
 
       (is (= (deref message-received 100 'fail) message))
-      (n/stop node)
 
+      (ni/stop node)
       (h/epmd "-kill")))
 
   (testing "native -connect-> sliver"
     (h/epmd "-daemon" "-relaxed_command_check")
     (let [message-received (promise)
           other-node       "foo@127.0.0.1"
-          node             (n/start (n/node "bar@127.0.0.1" "monster"
+          node             (ni/start (n/node "bar@127.0.0.1" "monster"
                                             [(handler message-received)]))
-          pid              (n/pid node)
+          pid              (ni/pid node)
           message          'ohai2u]
 
       (h/escript "resources/native-to-sliver.echo-server.escript")
 
-      (n/send-registered-message node pid 'echo other-node
-                                 [pid message])
+      (a/spawn #(ni/send-registered-message node pid 'echo other-node
+                                           [pid message]))
 
       (is (= (deref message-received 100 'fail) message))
-      (n/stop node)
 
+      (ni/stop node)
       (h/epmd "-kill"))))
 
 (defn- type-x-echo-test [data]
   (h/epmd "-daemon" "-relaxed_command_check")
   (let [message-received (promise)
         other-node       "foo@127.0.0.1"
-        node             (n/start (n/node "bar@127.0.0.1" "monster"
+        node             (ni/start (n/node "bar@127.0.0.1" "monster"
                                           [(handler message-received)]))
-        pid              (n/pid node)
+        pid              (ni/pid node)
         message          data]
 
     (h/escript "resources/native-to-sliver.echo-server.escript")
 
-    (n/send-registered-message node pid 'echo other-node
-                               [pid message])
+    (a/spawn #(ni/send-registered-message node pid 'echo other-node
+                                         [pid message]))
 
     (let [expected (deref message-received 5000 'fail)]
       (is (= expected message)
           (str "T-ex:" (type expected) " -- "
                "T-ac:" (type message))))
-    (n/stop node)
 
+    (ni/stop node)
     (h/epmd "-kill")))
 
 (deftest all-types-echo-test

@@ -6,7 +6,7 @@
             [sliver.util :as util]
             [taoensso.timbre :as timbre])
   (:import [java.nio ByteBuffer]
-           [java.nio.channels SocketChannel]))
+           [co.paralleluniverse.fibers.io FiberSocketChannel]))
 
 ;; as seen in https://github.com/erlang/otp/blob/maint/lib/kernel/include/dist.hrl
 (defonce ^:const dflag-published 1)
@@ -165,7 +165,7 @@
   [{:keys [node-name cookie] :as node}
    {:keys [host port] :or {host "localhost"} :as other-node}]
   (let [port       (or port
-                       (with-open [^SocketChannel epmd-conn
+                       (with-open [^FiberSocketChannel epmd-conn
                                    (epmd/client)]
                          (epmd/port epmd-conn (util/plain-name
                                                (:node-name other-node)))))
@@ -183,16 +183,16 @@
                                                               cookie)]
                          {:status (or ack :error) :connection connection})
         (= :alive status) (do (send-status connection :false)
-                              (.close ^SocketChannel connection)
+                              (.close ^FiberSocketChannel connection)
                               {:status :alive :connection nil})
-        :else (do (.close ^SocketChannel connection)
+        :else (do (.close ^FiberSocketChannel connection)
                   (timbre/debug "Failed handshake. Status:" status
                                 "This is a bug. Please file a ticket.")
                   {:status :other :connection nil})))))
 
 ;; this is for handling an incoming connection from a node
 (defn handle-handshake
-  [{:keys [node-name cookie] :as node} ^SocketChannel connection]
+  [{:keys [node-name cookie] :as node} ^FiberSocketChannel connection]
   (let [a-name      (recv-name connection)
         b-challenge (util/gen-challenge)
         result      {:other-node a-name :connection connection}]
