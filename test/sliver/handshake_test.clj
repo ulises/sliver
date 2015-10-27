@@ -104,47 +104,39 @@
 (deftest native-handshake-test
   (testing "successful handshake"
     (h/epmd "-daemon" "-relaxed_command_check")
-    (let [handshake-status (promise)
-          cookie           "monster"
-          node             (n/node "foo@127.0.0.1" cookie [])
-          bar-node         (n/node "bar@127.0.0.1" cookie [])]
-
-      (h/erl "bar@127.0.0.1" cookie)
-
-      (Strand/sleep 5000)
-
-      ;; connect nodes
-      (a/spawn
-       #(deliver handshake-status (:status (initiate-handshake node bar-node))))
-
-      (is (= :ok (deref handshake-status 1000 :not-ok)))
-
-      (h/killall "beam.smp")
-      (h/epmd "-kill")))
-
-  (testing "alive handshake"
-    (h/epmd "-daemon" "-relaxed_command_check")
-    (let [handshake-status       (promise)
-          alive-handshake-status (promise)
-          cookie                 "monster"
-          node                   (n/node "foo@127.0.0.1" cookie [])
-          bar-node               (n/node "bar@127.0.0.1" cookie [])]
+    (let [cookie   "monster"
+          node     (n/node "foo@127.0.0.1" cookie [])
+          bar-node (n/node "bar@127.0.0.1" cookie [])]
 
       (h/erl "bar@127.0.0.1" cookie)
 
       (Strand/sleep 1000)
 
       ;; connect nodes
-      (a/spawn #(deliver handshake-status
-                         (:status (initiate-handshake node bar-node))))
-      (is (= :ok (deref handshake-status 1000 :not-ok)))
+      (is (= :ok (c/join (a/spawn
+                          #(:status (initiate-handshake node bar-node))))))
+
+      (h/killall "beam.smp")
+      (h/epmd "-kill")))
+
+  (testing "alive handshake"
+    (h/epmd "-daemon" "-relaxed_command_check")
+    (let [cookie   "monster"
+          node     (n/node "foo@127.0.0.1" cookie [])
+          bar-node (n/node "bar@127.0.0.1" cookie [])]
+
+      (h/erl "bar@127.0.0.1" cookie)
+
+      (Strand/sleep 1000)
+
+      ;; connect nodes
+      (is (= :ok (c/join
+                  (a/spawn #(:status (initiate-handshake node bar-node))))))
 
       ;; the old connection is live, this should not return a new connected
       ;; socket.
-      (a/spawn #(deliver alive-handshake-status
-                         (initiate-handshake node bar-node)))
       (is (= {:status :alive :connection nil}
-             (deref alive-handshake-status 1000 :not-ok)))
+             (c/join (a/spawn #(initiate-handshake node bar-node)))))
 
       (h/killall "beam.smp")
       (h/epmd "-kill")))
@@ -154,12 +146,11 @@
     (let [node (n/node "bar@127.0.0.1" "monster" [])]
 
       (ni/start node)
-      (Strand/sleep 1000)
 
       (h/escript "resources/wrong.cookie.native->sliver.escript")
 
-      (is (= [:epmd-socket :server-socket]
-             (keys @(:state node))))
+      ;; if there's no connection to foo, there's no writer for foo
+      (is (nil? (ni/whereis node 'foo-writer)))
 
       (ni/stop node)
       (h/epmd "-kill")))
@@ -174,8 +165,8 @@
 
       (ni/connect node {:node-name "foo"})
 
-      ;; the node hasn't been started, so no connections here
-      (is (not (keys @(:state node))))
+      ;; the node hasn't been started, so no connections to foo here
+      (is (nil? (ni/whereis node 'foo-writer)))
 
       (h/killall "beam.smp")
       (h/epmd "-kill"))))
@@ -183,62 +174,50 @@
 (deftest sliver-handshake-test
   (testing "successful handshake"
     (h/epmd "-daemon" "-relaxed_command_check")
-    (let [handshake-status (promise)
-          cookie           "monster"
-          node             (n/node "foo@127.0.0.1" cookie [])
-          bar-node         {:node-name "bar@127.0.0.1" :cookie cookie}]
+    (let [cookie   "monster"
+          node     (n/node "foo@127.0.0.1" cookie [])
+          bar-node {:node-name "bar@127.0.0.1" :cookie cookie}]
 
       (ni/start node)
-      (Strand/sleep 1000)
-
-      (a/spawn #(deliver handshake-status
-                         (:status (initiate-handshake bar-node node))))
 
       ;; connect nodes
-      (is (= :ok (deref handshake-status 1000 :not-ok)))
+      (is (= :ok (c/join
+                  (a/spawn #(:status (initiate-handshake bar-node node))))))
 
       (ni/stop node)
       (h/epmd "-kill")))
 
   (testing "alive handshake"
     (h/epmd "-daemon" "-relaxed_command_check")
-    (let [handshake-status       (promise)
-          alive-handshake-status (promise)
-          cookie                 "monster"
-          node                   (n/node "spaz@127.0.0.1" cookie [])
-          bar-node               (n/node "bar@127.0.0.1" cookie [])]
+    (let [cookie   "monster"
+          node     (n/node "spaz@127.0.0.1" cookie [])
+          bar-node (n/node "bar@127.0.0.1" cookie [])]
 
       (ni/start node)
-      (Strand/sleep 1000)
 
       ;; connect nodes
-      (a/spawn #(deliver handshake-status
-                         (:status (initiate-handshake bar-node node))))
-      (is (= :ok (deref handshake-status 1000 :not-ok)))
+      (is (= :ok (c/join
+                  (a/spawn #(:status (initiate-handshake bar-node node))))))
 
       ;; the old connection is live, this should not return a new connected
       ;; socket.
-      (a/spawn #(deliver alive-handshake-status
-                         (initiate-handshake bar-node node)))
       (is (= {:status :alive :connection nil}
-             (deref alive-handshake-status 2000 :not-alive)))
+             (c/join (a/spawn #(initiate-handshake bar-node node)))))
 
       (ni/stop node)
       (h/epmd "-kill")))
 
   (testing "wrong cookies sliver -connect-> sliver"
     (h/epmd "-daemon" "-relaxed_command_check")
-    (let [handshake-status (promise)
-          cookie           "monster"
-          node             (n/node "foo@127.0.0.1" cookie [])
-          bar-node         {:node-name "bar@127.0.0.1" :cookie "random"}]
+    (let [cookie   "monster"
+          node     (n/node "foo@127.0.0.1" cookie [])
+          bar-node {:node-name "bar@127.0.0.1" :cookie "random"}]
 
       (ni/start node)
 
       ;; connect nodes
-      (a/spawn #(deliver handshake-status
-                         (:status (initiate-handshake bar-node node))))
-      (is (= :error (deref handshake-status 1000 :not-error)))
+      (is (= :error (c/join
+                     (a/spawn #(:status (initiate-handshake bar-node node))))))
 
       (ni/stop node)
       (h/epmd "-kill")))
@@ -253,7 +232,7 @@
       (ni/connect node bar-node)
 
       ;; wrong cookies, so no connections here
-      (is (not (keys @(:state node))))
+      (is (nil? (ni/whereis node 'bar-writer)))
 
       (ni/stop node)
       (h/epmd "-kill"))))
@@ -268,12 +247,8 @@
       (ni/start node)
 
       ;; connect nodes
-      (let [actor            (a/spawn (fn []
-                                        (:status (initiate-handshake bar-node
-                                                                     node))))
-            ;; wait for actor to complete handshake
-            handshake-status (c/join actor)]
-       (is (= :ok handshake-status)))
+      (is (= :ok (c/join
+                  (a/spawn #(:status (initiate-handshake bar-node node))))))
 
       (ni/stop node)
       (h/epmd "-kill")))
@@ -288,11 +263,9 @@
       (Strand/sleep 1000)
 
       ;; connect nodes
-      (let [actor            (a/spawn (fn []
-                                        (:status (initiate-handshake node
-                                                                     bar-node))))
-            handshake-status (c/join actor)]
-        (is (= :ok handshake-status)))
+      (is (= :ok (c/join 
+                  (a/spawn #(:status (initiate-handshake node
+                                                         bar-node))))))
 
       (h/killall "beam.smp")
       (h/epmd "-kill")))
@@ -306,12 +279,9 @@
       (ni/start node)
 
       ;; connect nodes
-      (let [handshake-status (c/join
-                              (a/spawn
-                               (fn []
-                                 (:status
-                                  (initiate-handshake bar-node node)))))]
-        (is (= :ok handshake-status)))
+      (is (= :ok (c/join
+                  (a/spawn
+                   #(:status (initiate-handshake bar-node node))))))
 
       (ni/stop node)
       (h/epmd "-kill")))
@@ -326,11 +296,9 @@
       (Strand/sleep 1000)
 
       ;; connect nodes
-      (let [handshake-status (c/join
-                              (a/spawn
-                               (fn []
-                                 (:status (initiate-handshake node bar-node)))))]
-        (is (= :ok handshake-status)))
+      (is (= :ok (c/join
+                  (a/spawn
+                   #(:status (initiate-handshake node bar-node))))))
 
       (h/killall "beam.smp")
       (h/epmd "-kill")))
@@ -344,11 +312,10 @@
       (ni/start node)
 
       ;; connect nodes
-      (let [handshake-status (c/join
-                              (a/spawn
-                               (fn []
-                                 (:status (initiate-handshake bar-node node)))))]
-        (is (= :ok handshake-status )))
+
+      (is (= :ok (c/join
+                  (a/spawn
+                   #(:status (initiate-handshake bar-node node))))))
 
       (ni/stop node)
       (h/epmd "-kill")))
@@ -363,11 +330,9 @@
       (Strand/sleep 1000)
 
       ;; connect nodes
-      (let [handshake-status (c/join
-                              (a/spawn
-                               (fn []
-                                 (:status (initiate-handshake node bar-node)))))]
-       (is (= :ok handshake-status )))
+      (is (= :ok (c/join
+                  (a/spawn
+                   #(:status (initiate-handshake node bar-node))))))
 
       (h/killall "beam.smp")
       (h/epmd "-kill")))
@@ -381,11 +346,9 @@
       (ni/start node)
 
       ;; connect nodes
-      (let [handshake-status (c/join
-                              (a/spawn
-                               (fn []
-                                 (:status (initiate-handshake bar-node node)))))]
-       (is (= :ok handshake-status )))
+      (is (= :ok (c/join
+                  (a/spawn
+                   #(:status (initiate-handshake bar-node node))))))
 
       (ni/stop node)
       (h/epmd "-kill")))
@@ -400,11 +363,34 @@
       (Strand/sleep 1000)
 
       ;; connect nodes
-      (let [handshake-status (c/join
-                              (a/spawn
-                               (fn []
-                                 (:status (initiate-handshake node bar-node)))))]
-       (is (= :ok handshake-status)))
+      (is (= :ok (c/join
+                  (a/spawn
+                   #(:status (initiate-handshake node bar-node))))))
 
       (h/killall "beam.smp")
+      (h/epmd "-kill"))))
+
+(deftest close-sockets-on-shutdown-test
+  (testing "writer sockets are closed on node shutdown"
+    (h/epmd "-daemon" "-relaxed_command_check")
+    (let [cookie   "monster"
+          node     (n/node "foo@127.0.0.1" cookie [])
+          bar-node (n/node "bar@127.0.0.1" cookie [])]
+
+      (ni/start node)
+
+      (ni/connect bar-node node)
+
+      ;; nodes are connected after here
+      (let [a (a/spawn
+               #(do (ni/monitor bar-node (ni/whereis bar-node 'foo-writer))
+                    (a/receive [m]
+                               [:exit ref actor throwable] :socket-closed
+                               :after 15000 :socket-not-closed)))]
+        ;; should close the connections; in turn the foo-writer process in
+        ;; bar-node should throw an exception since the socket is closed
+        (ni/stop node)
+
+        (is (= :socket-closed (c/join a))))
+
       (h/epmd "-kill"))))
