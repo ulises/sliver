@@ -22,6 +22,10 @@
 (defn- reader-name [other-node]
   (symbol (str (util/plain-name other-node) "-reader")))
 
+(defn- register-shutdown [node name]
+  (swap! (:state node) update-in
+         [:shutdown-notify] conj name))
+
 (defrecord Node [node-name host cookie handlers state pid-tracker ref-tracker
                  actor-tracker reverse-actor-tracker actor-registry]
   ni/NodeP
@@ -63,17 +67,28 @@
                                            (util/plain-name node)
                                            (util/plain-name other-node)))
                      (loop []
-                       (a/receive [m]
-                                  [:send-msg pid msg]
-                                  (do (p/send-message connection pid msg)
-                                      (recur))
-                                  [:send-reg-msg from to msg]
-                                  (do (p/send-reg-message connection from to
-                                                          msg)
-                                      (recur))
-                                  :else (do (timbre/debug "ELSE:" m)
-                                            (recur))))))]
+                       (a/receive
+                        [m]
+                        [:send-msg pid msg]
+                        (do (p/send-message connection pid msg)
+                            (recur))
+
+                        [:send-reg-msg from to msg]
+                        (do (p/send-reg-message connection from to msg)
+                            (recur))
+
+                        ;; if the reader dies, we should close
+                        ;; everything and finish
+                        [:exit _ref _actor throwable]
+                        (do (timbre/debug (format "%s: Reader died."
+                                                  (writer-name other-node)))
+                            (.close ^FiberSocketChannel connection))
+
+                        :shutdown (.close ^FiberSocketChannel connection)
+                        :else (do (timbre/debug "ELSE:" m)
+                                  (recur))))))]
       (ni/link node writer reader)
+      (register-shutdown node (writer-name other-node))
       :ok))
 
   (start [node]
@@ -83,8 +98,8 @@
                          node
                          (fn []
                            (let [server (tcp/server host port)]
-                             (swap! state update-in [:server-socket] assoc
-                                    :connection server)
+                             (ni/register node (ni/self node) 'server)
+                             (register-shutdown node 'server)
                              (loop []
                                (timbre/debug (format
                                               "%s: Accepting connections on %s"
@@ -102,26 +117,34 @@
                                                                other-node))
                                      (timbre/debug "Handshake failed :("))))
                                (recur)))))
-          epmd-actor (ni/spawn
-                      node
-                      #(let [epmd-conn   (epmd/client)
-                             epmd-result (epmd/register epmd-conn
-                                                        (util/plain-name
-                                                         name)
-                                                        port)]
-                         (if (not (= :ok (:status epmd-result)))
-                           (timbre/debug "Error registering with EPMD:"
-                                         name " -> " epmd-result))
-                         (swap! state update-in [:epmd-socket] assoc
-                                :connection epmd-conn)))]
-      (c/join (ni/actor-for node epmd-actor))
+          wait-for-epmd (c/promise)
+          epmd-actor    (ni/spawn
+                         node
+                         #(let [epmd-conn   (epmd/client)
+                                epmd-result (epmd/register epmd-conn
+                                                           (util/plain-name
+                                                            name)
+                                                           port)]
+                            (if (not (= :ok (:status epmd-result)))
+                              (timbre/debug "Error registering with EPMD:"
+                                            name " -> " epmd-result))
+                            (ni/register node (ni/self node) 'epmd-socket)
+                            (register-shutdown node 'epmd-socket)
+                            (deliver wait-for-epmd true)
+                            (a/receive :shutdown
+                                       (do (timbre/debug
+                                            (format "%s: closing epmd connection "
+                                                    (util/plain-name node)))
+                                           (.close ^FiberSocketChannel epmd-conn)))))]
+      @wait-for-epmd
       node))
 
   (stop [node]
+    (timbre/debug (format "%s: stopping..." (util/plain-name node)))
     (dorun
-     (for [{:keys [connection]} (vals @state)]
-       (do (timbre/debug "Closing:" connection)
-           (.close ^AsyncFiberServerSocketChannel connection))))
+     (for [writer (:shutdown-notify @state)]
+       (do (timbre/debug "Notifying:" writer)
+           (ni/! node writer :shutdown))))
     node)
 
   ;; pid(0, 42, 0) ! message
@@ -281,7 +304,8 @@
 (defn node [name cookie handlers]
   (let [[node-name host] (util/maybe-split name)]
     (timbre/debug node-name "::" host)
-    (Node. node-name (or host "localhost") cookie handlers (atom {})
+    (Node. node-name (or host "localhost") cookie handlers
+           (atom {:shutdown-notify #{}})
            (ref {:pid 0 :serial 0 :creation 0})
            (ref {:creation 0 :id [0 1 1]})
            (ref {})
