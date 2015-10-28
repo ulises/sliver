@@ -3,8 +3,7 @@
 (defprotocol NodeP
   "A simple protocol for Erlang nodes."
 
-  (connect
-    [node other-node]
+  (connect [node other-node]
     "Connects to an Erlang node.")
 
   (start [node]
@@ -22,29 +21,32 @@ It abstracts over send-message and send-registered-message.")
     "Creates a new pid.")
 
   (monitor [node pid]
-           "Monitor a process")
+    "Monitor a process")
 
   (demonitor [node pid monitor]
-             "Demonitor process")
+    "Demonitor process")
 
   (link [node pid]
         [node pid1 pid2]
-        "Links (self) to pid")
+    "Links (self) to pid")
 
   (self [node]
-        "Returns pid for current actor")
+    "Returns pid for current actor")
 
-  (spawn [node f]
-         "Spawns function f as a process.")
+  (spawn [node f] [node f opts]
+    "Spawns function f as a process passing opts to pulsar's spawn.")
+
+  (spawn-link [node f] [node f opts]
+    "Spawns function f as a process passing opts to pulsar's spawn, and links to it.")
 
   (register [node pid name]
-            "Registers a process under a name")
+    "Registers a process under a name")
 
   (whereis [node name]
-           "Finds an actor's pid based on its name")
+    "Finds an actor's pid based on its name")
 
   (make-ref [node pid]
-            "Creates a new reference.")
+    "Creates a new reference.")
 
   ;; all fns below are supposed to be private
   ;; perhaps having a protocol isn't the way to go, but rather
@@ -52,10 +54,10 @@ It abstracts over send-message and send-registered-message.")
   ;; After all, we don't need several node implementations.
 
   (send-message [node pid message]
-                "Sends a message to the process pid@host.")
+    "Sends a message to the process pid@host.")
 
   (send-registered-message [node from-pid process-name other-node message]
-                           "Sends a registered message to the process process-name@other-node.")
+    "Sends a registered message to the process process-name@other-node.")
 
   (track-pid [node pid actor]
     "Keeps pids connected to actors")

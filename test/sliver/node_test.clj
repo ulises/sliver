@@ -571,4 +571,52 @@
                (fn []
                  (ni/link node (ni/pid node) (ni/pid node))
                  (deliver barfed? false)))
-      (is (not (deref barfed? 1000 true))))))
+      (is (not (deref barfed? 1000 true)))))
+
+  (testing "trapping doesn't kill the processes"
+    (let [all-dead? (atom 0)
+          node      (n/node "bar" "monster" [])
+          chain     (fn [n f]
+                      (if (zero? n)
+                        (do (swap! all-dead? inc)
+                            (/ 1 0))
+                        (let [spawned (ni/spawn node
+                                                (fn []
+                                                  (f (dec n) f))
+                                                {:trap true})]
+                          (ni/link node spawned)
+                          (a/receive [:exit _ _ _]
+                                     (swap! all-dead? inc)))))]
+
+      (ni/spawn node #(chain 4 chain) {:trap true})
+
+      (Strand/sleep 1000)
+
+      (is (= 5 @all-dead?))))
+
+  (testing "spawn-link no trap"
+    (let [all-dead? (promise)
+          node      (n/node "bar" "monster" [])]
+
+      (ni/spawn node
+                #(do
+                   (ni/spawn-link node
+                                  (fn []
+                                    (Strand/sleep 500)))
+                   (a/receive _ (deliver all-dead? false))))
+
+      (is (deref all-dead? 1000 true))))
+
+  (testing "spawn-link with trap true"
+    (let [exit-recvd? (promise)
+          node        (n/node "bar" "monster" [])]
+
+      (ni/spawn node
+                #(do
+                   (ni/spawn-link node
+                                  (fn []
+                                    (Strand/sleep 500)))
+                   (a/receive [:exit _ _ _] (deliver exit-recvd? true)))
+                {:trap true})
+
+      (is (deref exit-recvd? 1000 false)))))
