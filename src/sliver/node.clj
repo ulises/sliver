@@ -242,13 +242,25 @@
         pid (recur)))
 
   (spawn [node f]
+    (ni/spawn node f {:trap false}))
+
+  (spawn [node f {:keys [trap] :or {trap false}}]
     (let [p (ni/pid node)]
       ;; it's likely that there's a race condition here between the spawning
       ;; of the process and it being registered. An actor might want to
       ;; immediately perform node ops that depend on the registry and its own
       ;; registered pid and they won't be available, etc. Figure out how to
       ;; spawn an actor in a "paused" mode
-      (ni/track-pid node p (a/spawn f))))
+      (ni/track-pid node p (a/spawn :trap trap f))))
+
+  ;; these are certainly NOT atomic
+  (spawn-link [node f]
+    (ni/spawn-link node f {:trap false}))
+
+  (spawn-link [node f opts]
+    (let [pid (ni/spawn node f opts)]
+      (ni/link node (ni/self node) pid)
+      pid))
 
   ;; this is likely to suffer from a race condition just like track-pid
   ;; in particular because of the use of whereis, we probably need a CAS

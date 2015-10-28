@@ -33,11 +33,11 @@ It abstracts over send-message and send-registered-message.")
   (self [node]
     "Returns pid for current actor")
 
-  (spawn [node f]
-    "Spawns function f as a process.")
+  (spawn [node f] [node f opts]
+    "Spawns function f as a process passing opts to pulsar's spawn.")
 
-  (spawn-link [node f]
-    "Spawns function f as a process and links to it.")
+  (spawn-link [node f] [node f opts]
+    "Spawns function f as a process passing opts to pulsar's spawn, and links to it.")
 
   (register [node pid name]
     "Registers a process under a name")
