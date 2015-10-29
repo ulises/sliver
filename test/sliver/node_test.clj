@@ -446,10 +446,10 @@
     (let [result  (promise)
           node    (n/node "bar" "monster" [])
           monitor (ni/spawn node
-                           (fn []
-                             (ni/monitor node
-                                        (ni/spawn node #(+ 1 1)))
-                             (a/receive m (deliver result m))))]
+                            (fn []
+                              (ni/monitor node
+                                          (ni/spawn node #(+ 1 1)))
+                              (a/receive m (deliver result m))))]
       (is (and (= :exit (first @result))
                (nil? (last @result))))))
 
@@ -457,11 +457,11 @@
     (let [result  (promise)
           node    (n/node "bar" "monster" [])
           monitor (ni/spawn node
-                           (fn []
-                             (ni/monitor node
-                                        (ni/spawn node
-                                                 #(throw (RuntimeException. "arse"))))
-                             (a/receive m (deliver result m))))]
+                            (fn []
+                              (ni/monitor node
+                                          (ni/spawn node
+                                                    #(throw (RuntimeException. "arse"))))
+                              (a/receive m (deliver result m))))]
       (is (= :exit (first @result)))
       (is (= RuntimeException (class (last @result))))))
 
@@ -523,7 +523,30 @@
                                     (a/receive
                                      [:exit _ _ _] (deliver demonitored? false)
                                      :after 1500   (deliver demonitored? true)))))]
-      (is @demonitored?))))
+      (is @demonitored?)))
+
+  (testing "spawn-monitor normal death"
+    (let [result  (promise)
+          node    (n/node "bar" "monster" [])
+          monitor (ni/spawn node
+                            (fn []
+                              (ni/spawn-monitor node
+                                                #(+ 1 1))
+                              (a/receive m (deliver result m))))]
+      (is (and (= :exit (first @result))
+               (nil? (last @result))))))
+
+  (testing "spawn-monitor exception death"
+    (let [result  (promise)
+          node    (n/node "bar" "monster" [])
+          monitor (ni/spawn node
+                            (fn []
+                              (ni/spawn-monitor
+                               node
+                               #(throw (RuntimeException. "arse")))
+                              (a/receive m (deliver result m))))]
+      (is (= :exit (first @result)))
+      (is (= RuntimeException (class (last @result)))))))
 
 (deftest link-processes-test
   (testing "deaths propagate"

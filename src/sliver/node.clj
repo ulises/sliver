@@ -218,6 +218,10 @@
     (when-let [actor (ni/actor-for node pid)]
       (a/watch! actor)))
 
+  (spawn-monitor [node f]
+    (let [pid (ni/spawn node f)]
+      (ni/monitor node pid)))
+
   (demonitor [node pid monitor]
     (when-let [actor (ni/actor-for node pid)]
       (a/unwatch! actor monitor)))
