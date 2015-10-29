@@ -23,6 +23,9 @@ It abstracts over send-message and send-registered-message.")
   (monitor [node pid]
     "Monitor a process")
 
+  (spawn-monitor [node f]
+    "Spawns a function f as a process and monitors it.")
+
   (demonitor [node pid monitor]
     "Demonitor process")
 
