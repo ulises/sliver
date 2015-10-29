@@ -80,7 +80,7 @@
 
   (testing "Spawned actor is tracked"
     (let [node  (n/node "bar" "monster" [])
-          pid   (ni/spawn node #(+ 1 1))
+          pid   (ni/spawn node #(Strand/sleep 5000))
           actor (ni/actor-for node pid)]
       (is (ni/actor-for node pid))
       (is (= pid (ni/pid-for node actor)))))
@@ -186,17 +186,18 @@
           successful  (atom 0)
           failed      (atom 0)
           actor-fn    (fn []
+                        (Strand/sleep (+ 500 (rand-int 500)))
                         (if-let [name (ni/register node (ni/self node) name)]
                           (swap! successful inc)
                           (swap! failed inc)))]
       (doall
-       (for [_ (range 100000)]
+       (for [_ (range 100)]
          (ni/spawn node actor-fn)))
 
       (Strand/sleep 1000)
 
       (is (= 1 @successful))
-      (is (= 99999 @failed))))
+      (is (= 99 @failed))))
 
   (testing "can't register with nil name"
     (let [node       (n/node "bar" "monster" [])
@@ -234,20 +235,21 @@
 
 (deftest send-messages-to-local-registered-processes-test
   (testing "local message doesn't hit the wire"
-    (with-redefs [sliver.protocol/send-reg-message
-                  (fn [& _]
-                    (is false "messages should not hit the wire"))]
-      (let [result (promise)
-            node   (n/node "bar" "monster" [])]
+    (let [result (promise)
+          node   (n/node "bar" "monster" [])]
 
-        (ni/spawn node (fn []
-                         (ni/register node (ni/self node) 'actor)
-                         (a/receive m (deliver result m))))
+      (ni/spawn node (fn []
+                       (ni/register node (ni/self node) 'actor)
+                       (a/receive m (deliver result m))))
+      (Strand/sleep 1000)
 
+      (with-redefs [sliver.protocol/send-reg-message
+                    (fn [& _]
+                      (is false "messages should not hit the wire"))]
         (ni/send-registered-message node 'ignored-pid 'actor "bar@127.0.0.1"
-                                   'success)
+                                    'success))
 
-        (is (= 'success (deref result 100 'failed))))))
+      (is (= 'success (deref result 1000 'failed)))))
 
   (testing "local message to non-existing process doesn't kill everything"
     (with-redefs [sliver.protocol/send-reg-message
@@ -290,13 +292,15 @@
                                 'actor)]
 
           (ni/start spaz)
-
           (ni/connect bar spaz)
+
+          (Strand/sleep 1000)
 
           (ni/send-registered-message bar (ni/pid bar) 'actor "spaz@127.0.0.1"
                                      'success)
 
           (Strand/sleep 1000)
+
           (is (= 1 @messages-sent))
 
           (ni/stop spaz)))))
@@ -439,7 +443,14 @@
   (testing "untracking nil doesn't make everything barf"
     (let [node (n/node "bar" "monster" [])]
       (ni/untrack node nil)
-      (is (nil? (ni/actor-for node nil))))))
+      (is (nil? (ni/actor-for node nil)))))
+
+  (testing "dead actors are reaped automatically"
+    (let [node (n/node "bar" "monster" [])
+          process (ni/spawn node (fn []
+                                   (Strand/sleep 500)))]
+      (Strand/sleep 1000)
+      (is (nil? (ni/actor-for node process))))))
 
 (deftest monitor-processes-test
   (testing "monitoring process receives [:exit ref actor nil] when monitored finishes"
