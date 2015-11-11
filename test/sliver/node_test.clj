@@ -186,10 +186,10 @@
           successful  (atom 0)
           failed      (atom 0)
           actor-fn    (fn []
-                        (Strand/sleep (+ 500 (rand-int 500)))
                         (if-let [name (ni/register node (ni/self node) name)]
                           (swap! successful inc)
-                          (swap! failed inc)))]
+                          (swap! failed inc))
+                        (a/receive))]
       (doall
        (for [_ (range 100)]
          (ni/spawn node actor-fn)))
@@ -231,7 +231,22 @@
           name       "clint eastwood"
           pid        (ni/spawn node #(+ 1 1))
           actor-name (ni/register node pid name)]
-      (is (= pid (ni/whereis node actor-name))))))
+      (is (= pid (ni/whereis node actor-name)))))
+
+  (testing "can unregister a registered actor"
+    (let [node       (n/node "bar" "monster" [])
+          name       'actor
+          pid        (ni/spawn node #(+ 1 1))
+          actor-name (ni/register node pid name)]
+      (ni/unregister node actor-name)
+      (is (nil? (ni/whereis node actor-name)))))
+
+  (testing "can find a registered actor's name from its pid"
+    (let [node       (n/node "bar" "monster" [])
+          name       "clint eastwood"
+          pid        (ni/spawn node #(+ 1 1))
+          actor-name (ni/register node pid name)]
+      (is (= actor-name (ni/name-for node pid))))))
 
 (deftest send-messages-to-local-registered-processes-test
   (testing "local message doesn't hit the wire"

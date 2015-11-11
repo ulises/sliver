@@ -239,6 +239,10 @@
   (pid-for [node actor]
     (get @reverse-actor-tracker actor))
 
+  (name-for [node pid]
+    (first (first (filter (fn [[k v]]
+                            (= pid v)) @actor-registry))))
+
   (self [node]
     (if-let [pid (ni/pid-for node @a/self)]
         pid (recur)))
@@ -275,6 +279,10 @@
       (swap! actor-registry assoc name pid)
       (timbre/debug "Registering " pid " as " name)
       name))
+
+  (unregister [node name]
+    (swap! actor-registry dissoc name)
+    name)
 
   (whereis [node name]
     (get @actor-registry name))
