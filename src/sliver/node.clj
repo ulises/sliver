@@ -6,6 +6,7 @@
             [co.paralleluniverse.pulsar.core :as c]
             [sliver.epmd :as epmd]
             [sliver.handshake :as h]
+            [sliver.handler :as ha]
             [sliver.node-interface :as ni]
             [sliver.protocol :as p]
             [sliver.tcp :as tcp]
@@ -325,27 +326,29 @@
 
 (defmethod !* nil [_ _ _])
 
-(defn node [name cookie handlers]
-  (let [[node-name host] (util/maybe-split name)
-        node             (Node. node-name (or host "localhost") cookie handlers
-                                (atom {:shutdown-notify #{}})
-                                (ref {:pid 0 :serial 0 :creation 0})
-                                (ref {:creation 0 :id [0 1 1]})
-                                (ref {})
-                                (ref {})
-                                (atom {}))]
-    (timbre/debug node-name "::" host)
-    (ni/spawn node
-              (fn []
-                (ni/register node (ni/self node) '_dead-processes-reaper)
-                (register-shutdown node '_dead-processes-reaper)
-                (loop []
-                  (a/receive [m]
-                             [:monitor pid] (do (ni/monitor node pid)
-                                                (recur))
-                             [:exit _ref actor _reason]
-                             (do (ni/untrack node (ni/pid-for node actor))
-                                 (recur))
-                             [:shutdown] (do (timbre/debug "Reaper shutting down...")
-                                             :ok)))))
-    node))
+(defn node
+  ([name cookie] (node name cookie [ha/handle-messages]))
+  ([name cookie handlers]
+   (let [[node-name host] (util/maybe-split name)
+         node             (Node. node-name (or host "localhost") cookie handlers
+                                 (atom {:shutdown-notify #{}})
+                                 (ref {:pid 0 :serial 0 :creation 0})
+                                 (ref {:creation 0 :id [0 1 1]})
+                                 (ref {})
+                                 (ref {})
+                                 (atom {}))]
+     (timbre/debug node-name "::" host)
+     (ni/spawn node
+               (fn []
+                 (ni/register node (ni/self node) '_dead-processes-reaper)
+                 (register-shutdown node '_dead-processes-reaper)
+                 (loop []
+                   (a/receive [m]
+                              [:monitor pid] (do (ni/monitor node pid)
+                                                 (recur))
+                              [:exit _ref actor _reason]
+                              (do (ni/untrack node (ni/pid-for node actor))
+                                  (recur))
+                              [:shutdown] (do (timbre/debug "Reaper shutting down...")
+                                              :ok)))))
+     node)))
