@@ -24,6 +24,8 @@
       (ni/start foo-node)
       (ni/connect bar-node foo-node)
 
+      (is (ni/whereis foo-node 'bar-writer))
+
       (ni/stop foo-node)
       (ni/stop bar-node)
       (h/epmd "-kill")))
