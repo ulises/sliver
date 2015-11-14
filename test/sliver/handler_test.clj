@@ -22,12 +22,12 @@
       ;; pong
       (ni/spawn foo
                 #(do
-                   (ni/register foo (ni/self foo) 'pong)
+                   (ni/register foo 'pong (ni/self foo))
                    (a/receive 'ping (ni/! foo ['ping "bar"] 'pong))))
       ;; ping
       (ni/spawn bar
                 #(do
-                   (ni/register bar (ni/self bar) 'ping)
+                   (ni/register bar 'ping (ni/self bar))
                    (ni/! bar ['pong "foo"] 'ping)
                    (a/receive 'pong (deliver done? true)
                               :after 1000 (deliver done? false))))
@@ -70,7 +70,7 @@
     (let [pong-received? (c/promise)
           node           (n/node "foo@127.0.0.1" "monster")
           ping           (fn []
-                           (ni/register node (ni/self node) 'ping)
+                           (ni/register node 'ping (ni/self node))
                            (ni/! node ['pong "bar"] 'ping)
                            (a/receive [something]
                                       _ (deliver pong-received? true)
@@ -93,7 +93,7 @@
     (let [pong-received? (c/promise)
           node           (n/node "foo@127.0.0.1" "monster")
           pong           (fn []
-                           (ni/register node (ni/self node) 'pong)
+                           (ni/register node 'pong (ni/self node))
                            (a/receive
                             'ping (do (ni/! node ['ping "bar"] 'pong)
                                       (deliver pong-received? true))
@@ -121,7 +121,7 @@
       (ni/connect node {:node-name "bar"})
 
       (ni/spawn node #(let [me (ni/self node)]
-                        (ni/register node me 'me)
+                        (ni/register node 'me me)
                         (ni/! node ['echo "bar"] [me 'hai])
                         (a/receive [me 'hai] (deliver done? true)
                                    :after 2000 (deliver done? false))))
@@ -140,7 +140,7 @@
       (Thread/sleep 100)
 
       (ni/spawn node #(let [me (ni/self node)]
-                        (ni/register node me 'me)
+                        (ni/register node 'me me)
                         (a/receive [from 'hai] (do (ni/! node from
                                                          [from 'hai])
                                                    (deliver done? true))

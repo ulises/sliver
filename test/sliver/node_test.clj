@@ -153,21 +153,21 @@
     (let [node       (n/node "bar" "monster" [])
           name       'clint-eastwood
           pid        (ni/spawn node #(+ 1 1))
-          actor-name (ni/register node pid name)]
+          actor-name (ni/register node name pid)]
       (is (= name actor-name))))
 
   (testing "can register a process with a name (keyword)"
     (let [node       (n/node "bar" "monster" [])
           name       :clint-eastwood
           pid        (ni/spawn node #(+ 1 1))
-          actor-name (ni/register node pid name)]
+          actor-name (ni/register node name pid)]
       (is (= name actor-name))))
 
   (testing "can register a process with a name (string)"
     (let [node       (n/node "bar" "monster" [])
           name       "clint eastwood"
           pid        (ni/spawn node #(+ 1 1))
-          actor-name (ni/register node pid name)]
+          actor-name (ni/register node name pid)]
       (is (= name actor-name))))
 
   (testing "registering a process with an already registered name fails"
@@ -175,8 +175,8 @@
           name        'clint-eastwood
           pid         (ni/spawn node #(+ 1 1))
           pid2        (ni/spawn node #(+ 1 1))
-          actor-name1 (ni/register node pid name)
-          actor-name2 (ni/register node pid2 name)]
+          actor-name1 (ni/register node name pid)
+          actor-name2 (ni/register node name pid2)]
       (is (= name actor-name1))
       (is (nil? actor-name2))))
 
@@ -186,7 +186,7 @@
           successful  (atom 0)
           failed      (atom 0)
           actor-fn    (fn []
-                        (if-let [name (ni/register node (ni/self node) name)]
+                        (if-let [name (ni/register node name (ni/self node))]
                           (swap! successful inc)
                           (swap! failed inc))
                         (a/receive))]
@@ -203,7 +203,7 @@
     (let [node       (n/node "bar" "monster" [])
           name       nil
           pid        (ni/spawn node #(+ 1 1))
-          actor-name (ni/register node pid name)]
+          actor-name (ni/register node name pid)]
       (is (nil? actor-name))
       (is (nil? (ni/whereis node name)))))
 
@@ -216,28 +216,28 @@
     (let [node       (n/node "bar" "monster" [])
           name       'clint-eastwood
           pid        (ni/spawn node #(+ 1 1))
-          actor-name (ni/register node pid name)]
+          actor-name (ni/register node name pid)]
       (is (= pid (ni/whereis node actor-name)))))
 
   (testing "can find an actor based on its name (keyword)"
     (let [node       (n/node "bar" "monster" [])
           name       :clint-eastwood
           pid        (ni/spawn node #(+ 1 1))
-          actor-name (ni/register node pid name)]
+          actor-name (ni/register node name pid)]
       (is (= pid (ni/whereis node actor-name)))))
 
   (testing "can find an actor based on its name (string)"
     (let [node       (n/node "bar" "monster" [])
           name       "clint eastwood"
           pid        (ni/spawn node #(+ 1 1))
-          actor-name (ni/register node pid name)]
+          actor-name (ni/register node name pid)]
       (is (= pid (ni/whereis node actor-name)))))
 
   (testing "can unregister a registered actor"
     (let [node       (n/node "bar" "monster" [])
           name       'actor
           pid        (ni/spawn node #(+ 1 1))
-          actor-name (ni/register node pid name)]
+          actor-name (ni/register node name pid)]
       (ni/unregister node actor-name)
       (is (nil? (ni/whereis node actor-name)))))
 
@@ -245,7 +245,7 @@
     (let [node       (n/node "bar" "monster" [])
           name       "clint eastwood"
           pid        (ni/spawn node #(+ 1 1))
-          actor-name (ni/register node pid name)]
+          actor-name (ni/register node name pid)]
       (is (= actor-name (ni/name-for node pid))))))
 
 (deftest send-messages-to-local-registered-processes-test
@@ -254,7 +254,7 @@
           node   (n/node "bar" "monster" [])]
 
       (ni/spawn node (fn []
-                       (ni/register node (ni/self node) 'actor)
+                       (ni/register node 'actor (ni/self node))
                        (a/receive m (deliver result m))))
       (Strand/sleep 1000)
 
@@ -302,9 +302,9 @@
                       (reset! messages-sent 1))]
         (let [bar  (n/node "bar" "monster" [])
               spaz (n/node "spaz" "monster" [])
-              _    (ni/register bar (ni/spawn bar #(a/receive m :ok
-                                                              :after 5000 :ok))
-                                'actor)]
+              _    (ni/register bar 'actor
+                                (ni/spawn bar #(a/receive m :ok
+                                                          :after 5000 :ok)))]
 
           (ni/start spaz)
           (ni/connect bar spaz)
@@ -327,19 +327,19 @@
       (let [result (atom 0)
             node   (n/node "bar" "monster" [])
             pid1   (ni/spawn node (fn []
-                                   (ni/register node (ni/self node) 'pong)
-                                   (a/receive
-                                    'ping (ni/send-registered-message node
-                                                                     'ignored
-                                                                     'ping
-                                                                     "bar@127.0.0.1"
-                                                                     'pong))))]
+                                    (ni/register node 'pong (ni/self node))
+                                    (a/receive
+                                     'ping (ni/send-registered-message node
+                                                                       'ignored
+                                                                       'ping
+                                                                       "bar@127.0.0.1"
+                                                                       'pong))))]
         (ni/spawn node (fn []
-                        (ni/register node (ni/self node) 'ping)
-                        (ni/send-registered-message node 'ignored 'pong
-                                                   "bar@127.0.0.1" 'ping)
-                        (a/receive
-                         'pong (reset! result 1))))
+                         (ni/register node 'ping (ni/self node))
+                         (ni/send-registered-message node 'ignored 'pong
+                                                     "bar@127.0.0.1" 'ping)
+                         (a/receive
+                          'pong (reset! result 1))))
 
         ;; because race condition between actors ping-ponging and assertion
         (Strand/sleep 1000)
@@ -354,9 +354,12 @@
                   registered? (promise)
                   node        (n/node "bar" "monster" [])
                   _pid        (ni/spawn node (fn []
-                                              (ni/register node (ni/self node) name)
-                                              (deliver registered? true)
-                                              (a/receive 'hai (deliver result true))))]
+                                               (ni/register node name
+                                                            (ni/self node))
+                                               (deliver registered? true)
+                                               (a/receive 'hai
+                                                          (deliver result
+                                                                   true))))]
               @registered?
 
               ;; sends message to locally registered actor

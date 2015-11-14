@@ -48,8 +48,7 @@
     (let [reader (ni/spawn
                   node
                   #(do
-                     (ni/register node (ni/self node)
-                                  (reader-name other-node))
+                     (ni/register node (reader-name other-node) (ni/self node))
                      (timbre/debug (format "%s: Reader for %s"
                                            (util/plain-name node)
                                            (util/plain-name other-node)))
@@ -62,8 +61,7 @@
           writer (ni/spawn
                   node
                   #(do
-                     (ni/register node (ni/self node)
-                                  (writer-name other-node))
+                     (ni/register node (writer-name other-node) (ni/self node))
                      (timbre/debug (format "%s: Writer for %s"
                                            (util/plain-name node)
                                            (util/plain-name other-node)))
@@ -99,7 +97,7 @@
                          node
                          (fn []
                            (let [server (tcp/server host port)]
-                             (ni/register node (ni/self node) 'server)
+                             (ni/register node 'server (ni/self node))
                              (register-shutdown node 'server)
                              (loop []
                                (timbre/debug (format
@@ -129,7 +127,7 @@
                             (if (not (= :ok (:status epmd-result)))
                               (timbre/debug "Error registering with EPMD:"
                                             name " -> " epmd-result))
-                            (ni/register node (ni/self node) 'epmd-socket)
+                            (ni/register node 'epmd-socket (ni/self node))
                             (register-shutdown node 'epmd-socket)
                             (deliver wait-for-epmd true)
                             (a/receive :shutdown
@@ -274,7 +272,7 @@
   ;; this is likely to suffer from a race condition just like track-pid
   ;; in particular because of the use of whereis, we probably need a CAS
   ;; type approach here
-  (register [node pid name]
+  (register [node name pid]
     (when (and name
                (not (ni/whereis node name)))
       (swap! actor-registry assoc name pid)
@@ -340,7 +338,7 @@
      (timbre/debug node-name "::" host)
      (ni/spawn node
                (fn []
-                 (ni/register node (ni/self node) '_dead-processes-reaper)
+                 (ni/register node '_dead-processes-reaper (ni/self node))
                  (register-shutdown node '_dead-processes-reaper)
                  (loop []
                    (a/receive [m]

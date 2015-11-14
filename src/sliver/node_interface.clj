@@ -42,7 +42,7 @@ It abstracts over send-message and send-registered-message.")
   (spawn-link [node f] [node f opts]
     "Spawns function f as a process passing opts to pulsar's spawn, and links to it.")
 
-  (register [node pid name]
+  (register [node name pid]
     "Registers a process under a name")
 
   (unregister [node name]
