@@ -45,6 +45,9 @@ It abstracts over send-message and send-registered-message.")
   (register [node pid name]
     "Registers a process under a name")
 
+  (unregister [node name]
+    "Unregisters a process under name")
+
   (whereis [node name]
     "Finds an actor's pid based on its name")
 
@@ -73,6 +76,9 @@ It abstracts over send-message and send-registered-message.")
 
   (pid-for [node actor]
     "Returns the pid linked to actor")
+
+  (name-for [node pid]
+    "Returns the name associated to the pid")
 
   (get-writer [node other-node]
     "Gets the writer handling the socket connected to other-node")
