@@ -345,8 +345,10 @@
                               [:monitor pid] (do (ni/monitor node pid)
                                                  (recur))
                               [:exit _ref actor _reason]
-                              (do (ni/untrack node (ni/pid-for node actor))
-                                  (recur))
+                              (let [pid (ni/pid-for node actor)]
+                                (ni/untrack node pid)
+                                (ni/unregister node (ni/name-for node pid))
+                                (recur))
                               [:shutdown] (do (timbre/debug "Reaper shutting down...")
                                               :ok)))))
      node)))
