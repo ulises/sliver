@@ -152,29 +152,29 @@
   (testing "can register a process with a name (symbol)"
     (let [node       (n/node "bar" "monster" [])
           name       'clint-eastwood
-          pid        (ni/spawn node #(+ 1 1))
+          pid        (ni/spawn node #(a/receive))
           actor-name (ni/register node name pid)]
       (is (= name actor-name))))
 
   (testing "can register a process with a name (keyword)"
     (let [node       (n/node "bar" "monster" [])
           name       :clint-eastwood
-          pid        (ni/spawn node #(+ 1 1))
+          pid        (ni/spawn node #(a/receive))
           actor-name (ni/register node name pid)]
       (is (= name actor-name))))
 
   (testing "can register a process with a name (string)"
     (let [node       (n/node "bar" "monster" [])
           name       "clint eastwood"
-          pid        (ni/spawn node #(+ 1 1))
+          pid        (ni/spawn node #(a/receive))
           actor-name (ni/register node name pid)]
       (is (= name actor-name))))
 
   (testing "registering a process with an already registered name fails"
     (let [node        (n/node "bar" "monster" [])
           name        'clint-eastwood
-          pid         (ni/spawn node #(+ 1 1))
-          pid2        (ni/spawn node #(+ 1 1))
+          pid         (ni/spawn node #(a/receive))
+          pid2        (ni/spawn node #(a/receive))
           actor-name1 (ni/register node name pid)
           actor-name2 (ni/register node name pid2)]
       (is (= name actor-name1))
@@ -215,28 +215,28 @@
   (testing "can find an actor based on its name (symbol)"
     (let [node       (n/node "bar" "monster" [])
           name       'clint-eastwood
-          pid        (ni/spawn node #(+ 1 1))
+          pid        (ni/spawn node #(a/receive))
           actor-name (ni/register node name pid)]
       (is (= pid (ni/whereis node actor-name)))))
 
   (testing "can find an actor based on its name (keyword)"
     (let [node       (n/node "bar" "monster" [])
           name       :clint-eastwood
-          pid        (ni/spawn node #(+ 1 1))
+          pid        (ni/spawn node #(a/receive))
           actor-name (ni/register node name pid)]
       (is (= pid (ni/whereis node actor-name)))))
 
   (testing "can find an actor based on its name (string)"
     (let [node       (n/node "bar" "monster" [])
           name       "clint eastwood"
-          pid        (ni/spawn node #(+ 1 1))
+          pid        (ni/spawn node #(a/receive))
           actor-name (ni/register node name pid)]
       (is (= pid (ni/whereis node actor-name)))))
 
   (testing "can unregister a registered actor"
     (let [node       (n/node "bar" "monster" [])
           name       'actor
-          pid        (ni/spawn node #(+ 1 1))
+          pid        (ni/spawn node #(a/receive))
           actor-name (ni/register node name pid)]
       (ni/unregister node actor-name)
       (is (nil? (ni/whereis node actor-name)))))
@@ -244,7 +244,7 @@
   (testing "can find a registered actor's name from its pid"
     (let [node       (n/node "bar" "monster" [])
           name       "clint eastwood"
-          pid        (ni/spawn node #(+ 1 1))
+          pid        (ni/spawn node #(a/receive))
           actor-name (ni/register node name pid)]
       (is (= actor-name (ni/name-for node pid))))))
 
