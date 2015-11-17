@@ -4,4 +4,5 @@
 
 main(_) ->
     erlang:display("Connecting to spaz@..."),
-    true = net_kernel:connect_node('spaz@127.0.0.1').
+    true = net_kernel:connect_node('spaz@127.0.0.1'),
+    timer:sleep(2000).

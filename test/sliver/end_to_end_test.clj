@@ -32,13 +32,13 @@
 
   (testing "native erlang nodes can connect to sliver nodes"
     (h/epmd "-daemon" "-relaxed_command_check")
-    (let [node       (n/node "bar@127.0.0.1" "monster" [])
-          other-node "foo"]
+    (let [node (n/node "bar@127.0.0.1" "monster" [])]
 
       ;; accept incoming connections
       (ni/start node)
+      (Strand/sleep 1000)
 
-      ;; connect from native node
+      ;; connect from native node foo@127.0.0.1
       (h/escript "resources/connect-from-native.escript")
 
       (is (ni/whereis node 'foo-writer))
@@ -55,32 +55,13 @@
 
       ;; connect from native node foo
       (h/escript "resources/connect-from-native-node-foo.escript")
-
       ;; ;; connect from native node bar
       (h/escript "resources/connect-from-native-node-bar.escript")
-      (Strand/sleep 1000)
 
       (is (ni/whereis node 'foo-writer))
       (is (ni/whereis node 'bar-writer))
 
       (ni/stop node)
-      (h/epmd "-kill")))
-
-  (testing "sucessful connections are kept around"
-    (h/epmd "-daemon" "-relaxed_command_check")
-
-    (let [foo-name "foo@127.0.0.1"
-          bar-name "bar@127.0.0.1"
-          foo-node (n/node foo-name "monster" [])
-          bar-node (n/node bar-name "monster" [])]
-      (ni/start foo-node)
-      (ni/connect bar-node foo-node)
-
-      (is (ni/whereis foo-node 'bar-writer))
-
-      (ni/stop foo-node)
-      (ni/stop bar-node)
-
       (h/epmd "-kill"))))
 
 (deftest nodes-register-with-epmd
