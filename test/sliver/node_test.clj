@@ -464,11 +464,21 @@
       (is (nil? (ni/actor-for node nil)))))
 
   (testing "dead actors are reaped automatically"
-    (let [node (n/node "bar" "monster" [])
+    (let [node    (n/node "bar" "monster" [])
+          _       (Strand/sleep 100)
           process (ni/spawn node (fn []
                                    (Strand/sleep 500)))]
       (Strand/sleep 1000)
-      (is (nil? (ni/actor-for node process))))))
+      (is (nil? (ni/actor-for node process)))))
+
+  (testing "dead named actors are reaped automatically"
+    (let [node    (n/node "bar" "monster" [])
+          _       (Strand/sleep 100)
+          process (ni/spawn node (fn []
+                                   (ni/register node 'foo (ni/self node))
+                                   (Strand/sleep 500)))]
+      (Strand/sleep 1000)
+      (is (nil? (ni/whereis node 'foo))))))
 
 (deftest monitor-processes-test
   (testing "monitoring process receives [:exit ref actor nil] when monitored finishes"
