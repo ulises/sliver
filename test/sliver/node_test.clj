@@ -403,7 +403,7 @@
     (let [result (promise)
           node   (n/node "bar" "monster" [])
           pid    (ni/spawn node (fn []
-                                 (a/receive _ (deliver result true))))]
+                                  (a/receive _ (deliver result true))))]
       (with-redefs [sliver.protocol/send-message     (fn [& _]
                                                        (is false
                                                            "should not hit the wire"))
@@ -443,13 +443,39 @@
       ;; need to call from within actor because internally
       ;; this uses (self node)
       (ni/spawn bar (fn []
-                     (log/debug "Sending...")
-                     (ni/! bar [actor-name "spaz@127.0.0.1"]
-                          (into [] (range 1000)))))
+                      (log/debug "Sending...")
+                      (ni/! bar [actor-name "spaz@127.0.0.1"]
+                            (into [] (range 1000)))))
 
       (is (deref result 10000 false))
 
-      (ni/stop spaz))))
+      (ni/stop spaz)))
+
+  (testing "! to registered process returns message"
+    (let [node (n/node "foo@127.0.0.1" "monster")
+          p    (ni/spawn node #(do (ni/register node 'p (ni/self node))
+                                   (a/receive)))]
+      (Strand/sleep 100)
+
+      (is (= 'ohai (ni/! node 'p 'ohai)))))
+
+  (testing "! to pid returns message"
+    (let [node (n/node "foo@127.0.0.1" "monster")
+          pid  (ni/spawn node #(a/receive))]
+      (is (= 'ohai (ni/! node pid 'ohai)))))
+
+  (testing "! to remote process returns message"
+    (let [sent (c/promise)
+          spaz (n/node "spaz@127.0.0.1" "monster")
+          bar  (n/node "bar@127.0.0.1" "monster")
+          p    (ni/spawn bar #(do (ni/register bar 'p (ni/self bar))
+                                  (a/receive)))]
+      (ni/start bar)
+      (ni/connect spaz bar)
+
+      (ni/spawn spaz #(deliver sent (ni/! spaz ['p bar] 'ohai)))
+
+      (is (= 'ohai (deref sent 1000 'not-hai))))))
 
 (deftest dead-actor-reaper-test
   (testing "spawned actors are not tracked once they're untracked"

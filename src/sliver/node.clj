@@ -158,7 +158,8 @@
             (ni/send-message node writer-pid [:send-msg pid message])
             (do (timbre/debug
                  (format "Couldn't find writer for %s. Please double check this."
-                         other-node-name))))))))
+                         other-node-name)))))
+        message)))
 
   ;; equivalent to {to, 'name@host'} ! message
   (send-registered-message [node from to other-node message]
@@ -169,7 +170,8 @@
             (a/! (ni/actor-for node pid) message))
         (do (timbre/debug "WARNING: couldn't find local actor " to)))
       (if-let [writer-pid (ni/get-writer node other-node)]
-        (ni/send-message node writer-pid [:send-reg-msg from to message])
+        (do (ni/send-message node writer-pid [:send-reg-msg from to message])
+            message)
         (do (timbre/debug
              (format "Couldn't find writer for %s. Please double check this."
                      other-node))))))
