@@ -91,51 +91,54 @@
       :ok))
 
   (start [node]
-    (let [name          (util/plain-name node)
-          port          (+ 1024 (rand-int 50000))
-          server-thread (ni/spawn
-                         node
-                         (fn []
-                           (let [server (tcp/server host port)]
-                             (ni/register node 'server (ni/self node))
-                             (register-shutdown node 'server)
-                             (loop []
-                               (timbre/debug (format
-                                              "%s: Accepting connections on %s"
-                                              name port))
-                               (let [conn (.accept server)]
-                                 (timbre/debug "Accepted connection:" conn)
-                                 (let [{:keys [status connection other-node]}
-                                       (h/handle-handshake node conn)]
-                                   (if (= :ok status)
-                                     (do (timbre/debug "Connection established."
-                                                       " Saving to:"
-                                                       other-node)
-                                         (ni/handle-connection node
-                                                               connection
-                                                               other-node))
-                                     (timbre/debug "Handshake failed :("))))
-                               (recur)))))
-          wait-for-epmd (c/promise)
-          epmd-actor    (ni/spawn
-                         node
-                         #(let [epmd-conn   (epmd/client)
-                                epmd-result (epmd/register epmd-conn
-                                                           (util/plain-name
-                                                            name)
-                                                           port)]
-                            (if (not (= :ok (:status epmd-result)))
-                              (timbre/debug "Error registering with EPMD:"
-                                            name " -> " epmd-result))
-                            (ni/register node 'epmd-socket (ni/self node))
-                            (register-shutdown node 'epmd-socket)
-                            (deliver wait-for-epmd true)
-                            (a/receive :shutdown
-                                       (do (timbre/debug
-                                            (format "%s: closing epmd connection "
-                                                    (util/plain-name node)))
-                                           (.close ^FiberSocketChannel epmd-conn)))))]
+    (let [name            (util/plain-name node)
+          port            (+ 1024 (rand-int 50000))
+          wait-for-server (c/promise)
+          server-thread   (ni/spawn
+                           node
+                           (fn []
+                             (let [server (tcp/server host port)]
+                               (ni/register node 'server (ni/self node))
+                               (register-shutdown node 'server)
+                               (deliver wait-for-server :ok)
+                               (loop []
+                                 (timbre/debug (format
+                                                "%s: Accepting connections on %s"
+                                                name port))
+                                 (let [conn (.accept server)]
+                                   (timbre/debug "Accepted connection:" conn)
+                                   (let [{:keys [status connection other-node]}
+                                         (h/handle-handshake node conn)]
+                                     (if (= :ok status)
+                                       (do (timbre/debug "Connection established."
+                                                         " Saving to:"
+                                                         other-node)
+                                           (ni/handle-connection node
+                                                                 connection
+                                                                 other-node))
+                                       (timbre/debug "Handshake failed :("))))
+                                 (recur)))))
+          wait-for-epmd   (c/promise)
+          epmd-actor      (ni/spawn
+                           node
+                           #(let [epmd-conn   (epmd/client)
+                                  epmd-result (epmd/register epmd-conn
+                                                             (util/plain-name
+                                                              name)
+                                                             port)]
+                              (if (not (= :ok (:status epmd-result)))
+                                (timbre/debug "Error registering with EPMD:"
+                                              name " -> " epmd-result))
+                              (ni/register node 'epmd-socket (ni/self node))
+                              (register-shutdown node 'epmd-socket)
+                              (deliver wait-for-epmd :ok)
+                              (a/receive :shutdown
+                                         (do (timbre/debug
+                                              (format "%s: closing epmd connection "
+                                                      (util/plain-name node)))
+                                             (.close ^FiberSocketChannel epmd-conn)))))]
       @wait-for-epmd
+      @wait-for-server
       node))
 
   (stop [node]
