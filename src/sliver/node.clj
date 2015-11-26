@@ -10,6 +10,7 @@
             [sliver.node-interface :as ni]
             [sliver.protocol :as p]
             [sliver.reaper :as r]
+            [sliver.server-thread :as s]
             [sliver.tcp :as tcp]
             [sliver.util :as util]
             [taoensso.timbre :as timbre])
@@ -88,30 +89,7 @@
     (let [name            (util/plain-name node)
           port            (+ 1024 (rand-int 50000))
           wait-for-server (c/promise)
-          server-thread   (ni/spawn
-                           node
-                           (fn []
-                             (let [server (tcp/server host port)]
-                               (ni/register node 'server (ni/self node))
-                               (util/register-shutdown node 'server)
-                               (deliver wait-for-server :ok)
-                               (loop []
-                                 (timbre/debug (format
-                                                "%s: Accepting connections on %s"
-                                                name port))
-                                 (let [conn (.accept server)]
-                                   (timbre/debug "Accepted connection:" conn)
-                                   (let [{:keys [status connection other-node]}
-                                         (h/handle-handshake node conn)]
-                                     (if (= :ok status)
-                                       (do (timbre/debug "Connection established."
-                                                         " Saving to:"
-                                                         other-node)
-                                           (ni/handle-connection node
-                                                                 connection
-                                                                 other-node))
-                                       (timbre/debug "Handshake failed :("))))
-                                 (recur)))))
+          server-thread   (s/server-thread node host port wait-for-server)
           wait-for-epmd   (c/promise)
           epmd-actor      (ni/spawn
                            node
@@ -163,7 +141,8 @@
     ;; check other-node first, if local, check registered actor
     (if (= (util/plain-name other-node) (util/plain-name node))
       (if-let [pid (ni/whereis node to)]
-        (do (timbre/debug "Sending " message " to: " to " -- " (ni/actor-for node pid))
+        (do (timbre/debug "Sending " message " to: " to " -- " (ni/actor-for
+                                                                node pid))
             (a/! (ni/actor-for node pid) message))
         (do (timbre/debug "WARNING: couldn't find local actor " to)))
       (if-let [writer-pid (ni/get-writer node other-node)]
