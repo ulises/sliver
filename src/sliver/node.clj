@@ -9,6 +9,7 @@
             [sliver.handler :as ha]
             [sliver.node-interface :as ni]
             [sliver.protocol :as p]
+            [sliver.reaper :as r]
             [sliver.tcp :as tcp]
             [sliver.util :as util]
             [taoensso.timbre :as timbre])
@@ -22,10 +23,6 @@
 
 (defn- reader-name [other-node]
   (symbol (str (util/plain-name other-node) "-reader")))
-
-(defn- register-shutdown [node name]
-  (swap! (:state node) update-in
-         [:shutdown-notify] conj name))
 
 (defrecord Node [node-name host cookie handlers state pid-tracker ref-tracker
                  actor-tracker reverse-actor-tracker actor-registry]
@@ -87,7 +84,7 @@
                         :else (do (timbre/debug "ELSE:" m)
                                   (recur))))))]
       (ni/link node writer reader)
-      (register-shutdown node (writer-name other-node))
+      (util/register-shutdown node (writer-name other-node))
       :ok))
 
   (start [node]
@@ -99,7 +96,7 @@
                            (fn []
                              (let [server (tcp/server host port)]
                                (ni/register node 'server (ni/self node))
-                               (register-shutdown node 'server)
+                               (util/register-shutdown node 'server)
                                (deliver wait-for-server :ok)
                                (loop []
                                  (timbre/debug (format
@@ -130,7 +127,7 @@
                                 (timbre/debug "Error registering with EPMD:"
                                               name " -> " epmd-result))
                               (ni/register node 'epmd-socket (ni/self node))
-                              (register-shutdown node 'epmd-socket)
+                              (util/register-shutdown node 'epmd-socket)
                               (deliver wait-for-epmd :ok)
                               (a/receive :shutdown
                                          (do (timbre/debug
@@ -342,21 +339,6 @@
                                  (ref {})
                                  (atom {}))]
      (timbre/debug node-name "::" host)
-     (ni/spawn node
-               (fn []
-                 (ni/register node '_dead-processes-reaper (ni/self node))
-                 (register-shutdown node '_dead-processes-reaper)
-                 (deliver reaper-ready :ok)
-                 (loop []
-                   (a/receive [m]
-                              [:monitor pid] (do (ni/monitor node pid)
-                                                 (recur))
-                              [:exit _ref actor _reason]
-                              (let [pid (ni/pid-for node actor)]
-                                (ni/untrack node pid)
-                                (ni/unregister node (ni/name-for node pid))
-                                (recur))
-                              [:shutdown] (do (timbre/debug "Reaper shutting down...")
-                                              :ok)))))
+     (ni/spawn node (r/reaper node reaper-ready))
      @reaper-ready
      node)))

@@ -32,3 +32,7 @@
 
 (defn fqdn [{:keys [node-name host]}]
   (str node-name "@" host))
+
+(defn register-shutdown [node name]
+  (swap! (:state node) update-in
+         [:shutdown-notify] conj name))
