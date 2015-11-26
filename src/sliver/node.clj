@@ -1,14 +1,17 @@
 (ns sliver.node
-  (:require [borges.type :as t]
-            [borges.decoder :as d]
+  (:require [borges.decoder :as d]
+            [borges.type :as t]
             [bytebuffer.buff :refer [take-ubyte]]
             [co.paralleluniverse.pulsar.actors :as a]
             [co.paralleluniverse.pulsar.core :as c]
             [sliver.epmd :as epmd]
-            [sliver.handshake :as h]
             [sliver.handler :as ha]
+            [sliver.handshake :as h]
+            [sliver.io :as io]
             [sliver.node-interface :as ni]
             [sliver.protocol :as p]
+            [sliver.reaper :as r]
+            [sliver.server-thread :as s]
             [sliver.tcp :as tcp]
             [sliver.util :as util]
             [taoensso.timbre :as timbre])
@@ -16,16 +19,6 @@
             AsyncFiberServerSocketChannel]))
 
 (declare !*)
-
-(defn- writer-name [other-node]
-  (symbol (str (util/plain-name other-node) "-writer")))
-
-(defn- reader-name [other-node]
-  (symbol (str (util/plain-name other-node) "-reader")))
-
-(defn- register-shutdown [node name]
-  (swap! (:state node) update-in
-         [:shutdown-notify] conj name))
 
 (defrecord Node [node-name host cookie handlers state pid-tracker ref-tracker
                  actor-tracker reverse-actor-tracker actor-registry]
@@ -41,102 +34,23 @@
                    node)))))
 
   (get-writer [node other-node]
-    (let [other-name (writer-name other-node)]
+    (let [other-name (util/writer-name other-node)]
       (ni/whereis node other-name)))
 
   (handle-connection [node connection other-node]
-    (let [reader (ni/spawn
-                  node
-                  #(do
-                     (ni/register node (reader-name other-node) (ni/self node))
-                     (timbre/debug (format "%s: Reader for %s"
-                                           (util/plain-name node)
-                                           (util/plain-name other-node)))
-                     (p/do-loop connection
-                                (fn handler [[control message]]
-                                  (let [[from to] (p/parse-control control)]
-                                    (dorun
-                                     (for [handler handlers]
-                                       (handler node from to message))))))))
-          writer (ni/spawn
-                  node
-                  #(do
-                     (ni/register node (writer-name other-node) (ni/self node))
-                     (timbre/debug (format "%s: Writer for %s"
-                                           (util/plain-name node)
-                                           (util/plain-name other-node)))
-                     (loop []
-                       (a/receive
-                        [m]
-                        [:send-msg pid msg]
-                        (do (p/send-message connection pid msg)
-                            (recur))
-
-                        [:send-reg-msg from to msg]
-                        (do (p/send-reg-message connection from to msg)
-                            (recur))
-
-                        ;; if the reader dies, we should close
-                        ;; everything and finish
-                        [:exit _ref _actor throwable]
-                        (do (timbre/debug (format "%s: Reader died."
-                                                  (writer-name other-node)))
-                            (.close ^FiberSocketChannel connection))
-
-                        :shutdown (.close ^FiberSocketChannel connection)
-                        :else (do (timbre/debug "ELSE:" m)
-                                  (recur))))))]
+    (let [reader (io/reader node connection handlers other-node)
+          writer (io/writer node connection other-node)]
       (ni/link node writer reader)
-      (register-shutdown node (writer-name other-node))
+      (util/register-shutdown node (util/writer-name other-node))
       :ok))
 
   (start [node]
     (let [name            (util/plain-name node)
           port            (+ 1024 (rand-int 50000))
           wait-for-server (c/promise)
-          server-thread   (ni/spawn
-                           node
-                           (fn []
-                             (let [server (tcp/server host port)]
-                               (ni/register node 'server (ni/self node))
-                               (register-shutdown node 'server)
-                               (deliver wait-for-server :ok)
-                               (loop []
-                                 (timbre/debug (format
-                                                "%s: Accepting connections on %s"
-                                                name port))
-                                 (let [conn (.accept server)]
-                                   (timbre/debug "Accepted connection:" conn)
-                                   (let [{:keys [status connection other-node]}
-                                         (h/handle-handshake node conn)]
-                                     (if (= :ok status)
-                                       (do (timbre/debug "Connection established."
-                                                         " Saving to:"
-                                                         other-node)
-                                           (ni/handle-connection node
-                                                                 connection
-                                                                 other-node))
-                                       (timbre/debug "Handshake failed :("))))
-                                 (recur)))))
+          server-thread   (s/server-thread node host port wait-for-server)
           wait-for-epmd   (c/promise)
-          epmd-actor      (ni/spawn
-                           node
-                           #(let [epmd-conn   (epmd/client)
-                                  epmd-result (epmd/register epmd-conn
-                                                             (util/plain-name
-                                                              name)
-                                                             port)]
-                              (if (not (= :ok (:status epmd-result)))
-                                (timbre/debug "Error registering with EPMD:"
-                                              name " -> " epmd-result))
-                              (ni/register node 'epmd-socket (ni/self node))
-                              (register-shutdown node 'epmd-socket)
-                              (deliver wait-for-epmd :ok)
-                              (a/receive :shutdown
-                                         (do (timbre/debug
-                                              (format "%s: closing epmd connection "
-                                                      (util/plain-name node)))
-                                             (.close ^FiberSocketChannel epmd-conn)))))]
+          epmd-handler    (epmd/epmd-handler node name port wait-for-epmd)]
       @wait-for-epmd
       @wait-for-server
       node))
@@ -169,7 +83,8 @@
     ;; check other-node first, if local, check registered actor
     (if (= (util/plain-name other-node) (util/plain-name node))
       (if-let [pid (ni/whereis node to)]
-        (do (timbre/debug "Sending " message " to: " to " -- " (ni/actor-for node pid))
+        (do (timbre/debug "Sending " message " to: " to " -- " (ni/actor-for
+                                                                node pid))
             (a/! (ni/actor-for node pid) message))
         (do (timbre/debug "WARNING: couldn't find local actor " to)))
       (if-let [writer-pid (ni/get-writer node other-node)]
@@ -342,21 +257,6 @@
                                  (ref {})
                                  (atom {}))]
      (timbre/debug node-name "::" host)
-     (ni/spawn node
-               (fn []
-                 (ni/register node '_dead-processes-reaper (ni/self node))
-                 (register-shutdown node '_dead-processes-reaper)
-                 (deliver reaper-ready :ok)
-                 (loop []
-                   (a/receive [m]
-                              [:monitor pid] (do (ni/monitor node pid)
-                                                 (recur))
-                              [:exit _ref actor _reason]
-                              (let [pid (ni/pid-for node actor)]
-                                (ni/untrack node pid)
-                                (ni/unregister node (ni/name-for node pid))
-                                (recur))
-                              [:shutdown] (do (timbre/debug "Reaper shutting down...")
-                                              :ok)))))
+     (ni/spawn node (r/reaper node reaper-ready))
      @reaper-ready
      node)))
