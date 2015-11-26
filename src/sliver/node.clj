@@ -18,12 +18,6 @@
 
 (declare !*)
 
-(defn- writer-name [other-node]
-  (symbol (str (util/plain-name other-node) "-writer")))
-
-(defn- reader-name [other-node]
-  (symbol (str (util/plain-name other-node) "-reader")))
-
 (defrecord Node [node-name host cookie handlers state pid-tracker ref-tracker
                  actor-tracker reverse-actor-tracker actor-registry]
   ni/NodeP
@@ -38,14 +32,15 @@
                    node)))))
 
   (get-writer [node other-node]
-    (let [other-name (writer-name other-node)]
+    (let [other-name (util/writer-name other-node)]
       (ni/whereis node other-name)))
 
   (handle-connection [node connection other-node]
     (let [reader (ni/spawn
                   node
                   #(do
-                     (ni/register node (reader-name other-node) (ni/self node))
+                     (ni/register node (util/reader-name other-node)
+                                  (ni/self node))
                      (timbre/debug (format "%s: Reader for %s"
                                            (util/plain-name node)
                                            (util/plain-name other-node)))
@@ -58,7 +53,8 @@
           writer (ni/spawn
                   node
                   #(do
-                     (ni/register node (writer-name other-node) (ni/self node))
+                     (ni/register node (util/writer-name other-node)
+                                  (ni/self node))
                      (timbre/debug (format "%s: Writer for %s"
                                            (util/plain-name node)
                                            (util/plain-name other-node)))
@@ -77,14 +73,15 @@
                         ;; everything and finish
                         [:exit _ref _actor throwable]
                         (do (timbre/debug (format "%s: Reader died."
-                                                  (writer-name other-node)))
+                                                  (util/writer-name
+                                                   other-node)))
                             (.close ^FiberSocketChannel connection))
 
                         :shutdown (.close ^FiberSocketChannel connection)
                         :else (do (timbre/debug "ELSE:" m)
                                   (recur))))))]
       (ni/link node writer reader)
-      (util/register-shutdown node (writer-name other-node))
+      (util/register-shutdown node (util/writer-name other-node))
       :ok))
 
   (start [node]

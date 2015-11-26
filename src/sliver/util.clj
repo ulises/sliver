@@ -36,3 +36,9 @@
 (defn register-shutdown [node name]
   (swap! (:state node) update-in
          [:shutdown-notify] conj name))
+
+(defn writer-name [other-node]
+  (symbol (str (plain-name other-node) "-writer")))
+
+(defn reader-name [other-node]
+  (symbol (str (plain-name other-node) "-reader")))
