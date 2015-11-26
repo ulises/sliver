@@ -9,48 +9,6 @@
             [taoensso.timbre :as log])
   (:import [co.paralleluniverse.strands Strand]))
 
-(defn- epmd-erl-fixture [f]
-  (h/epmd "-daemon" "-relaxed_command_check")
-  (h/erl "foo@127.0.0.1" "monster")
-  (h/erl "foo2@127.0.0.1" "monster")
-
-  (Strand/sleep 1000)
-
-  (f)
-
-  (h/killall "beam.smp")
-  (h/epmd "-kill"))
-
-(use-fixtures :each epmd-erl-fixture)
-
-(deftest test-node-name-connect
-  (testing "connect using node name"
-    (let [node     (n/node "bar@127.0.0.1" "monster" [])
-          foo-node (n/node "foo@127.0.0.1" "monster" [])]
-      (is @(:state (ni/connect node foo-node))))))
-
-(deftest test-node-connects-to-multiple-erlang-nodes
-  (testing "connect using node name"
-    (let [node (n/node "bar@127.0.0.1" "monster" [])
-          foo  (n/node "foo@127.0.0.1" "monster" [])
-          foo2 (n/node "foo2@127.0.0.1" "monster" [])]
-      (ni/connect node foo)
-      (ni/connect node foo2)
-
-      (is (ni/whereis node 'foo-writer))
-      (is (ni/whereis node 'foo2-writer)))))
-
-(deftest test-multiple-nodes-can-coexist
-  (testing "connecting from several nodes to same erlang node"
-    (let [node1 (n/node "bar@127.0.0.1" "monster" [])
-          node2 (n/node "baz@127.0.0.1" "monster" [])
-          foo   (n/node "foo@127.0.0.1" "monster" [])]
-      (ni/connect node1 foo)
-      (ni/connect node2 foo)
-
-      (is (ni/whereis node1 'foo-writer))
-      (is (ni/whereis node2 'foo-writer)))))
-
 (deftest test-pid-minting
   (testing "creating a new pid increments the pid count"
     (let [node (n/node "bar@127.0.0.1" "monster" [])]
@@ -279,6 +237,7 @@
         (is true))))
 
   (testing "non-local message should hit the wire"
+    (h/epmd "-daemon" "-relaxed_command_check")
     (let [messages-sent (atom 0)]
       (with-redefs [sliver.protocol/send-reg-message
                     (fn [& _]
@@ -290,12 +249,16 @@
           (ni/connect bar spaz)
 
           (ni/send-registered-message bar (ni/pid bar) 'actor "spaz@127.0.0.1"
-                                     'success)
+                                      'success)
+
           (is (= 1 @messages-sent))
 
-          (ni/stop spaz)))))
+          (ni/stop spaz))))
+    (h/epmd "-kill"))
 
   (testing "non-local message should hit the wire even if there's a local process"
+    (h/epmd "-daemon" "-relaxed_command_check")
+
     (let [messages-sent (atom 0)]
       (with-redefs [sliver.protocol/send-reg-message
                     (fn [& _]
@@ -316,7 +279,9 @@
 
           (is (= 1 @messages-sent))
 
-          (ni/stop spaz)))))
+          (ni/stop spaz))))
+
+    (h/epmd "-kill"))
 
   (testing "local registered ping pong doesn't hit the wire"
     (with-redefs [sliver.protocol/send-message
@@ -412,12 +377,13 @@
       (is (deref result 100 false))))
 
   (testing "! sends to remote pid"
+    (h/epmd "-daemon" "-relaxed_command_check")
     (let [result (promise)
           bar    (n/node "bar" "monster" [])
-          foo    (n/node "spaz" "monster" [(fn [_node _from _to msg]
-                                             (log/debug "FOO RECVD:" msg)
-                                             (if (= msg 'hai)
-                                               (deliver result true)))])]
+          foo    (n/node "foo" "monster" [(fn [_node _from _to msg]
+                                            (log/debug "FOO RECVD:" msg)
+                                            (if (= msg 'hai)
+                                              (deliver result true)))])]
       (ni/start foo)
       (ni/connect bar foo)
 
@@ -425,9 +391,12 @@
 
       (is (deref result 1000 false))
 
-      (ni/stop foo)))
+      (ni/stop foo))
+    (h/epmd "-kill"))
 
   (testing "! sends to remote actor"
+    (h/epmd "-daemon" "-relaxed_command_check")
+
     (let [result     (promise)
           bar        (n/node "bar" "monster" [])
           spaz       (n/node "spaz" "monster"
@@ -447,7 +416,9 @@
 
       (is (deref result 10000 false))
 
-      (ni/stop spaz)))
+      (ni/stop spaz))
+
+    (h/epmd "-kill"))
 
   (testing "! to registered process returns message"
     (let [node (n/node "foo@127.0.0.1" "monster")
@@ -463,6 +434,8 @@
       (is (= 'ohai (ni/! node pid 'ohai)))))
 
   (testing "! to remote process returns message"
+    (h/epmd "-daemon" "-relaxed_command_check")
+
     (let [sent (c/promise)
           spaz (n/node "spaz@127.0.0.1" "monster")
           bar  (n/node "bar@127.0.0.1" "monster")
@@ -473,7 +446,9 @@
 
       (ni/spawn spaz #(deliver sent (ni/! spaz ['p bar] 'ohai)))
 
-      (is (= 'ohai (deref sent 1000 'not-hai))))))
+      (is (= 'ohai (deref sent 1000 'not-hai))))
+
+    (h/epmd "-kill")))
 
 (deftest dead-actor-reaper-test
   (testing "spawned actors are not tracked once they're untracked"
