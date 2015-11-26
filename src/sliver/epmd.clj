@@ -47,7 +47,7 @@
     (tcp/send-bytes conn (port2-req name))
     (port2-resp (tcp/read-handshake-packet conn))))
 
-(defn foo [node name port wait-for-epmd]
+(defn epmd-handler [node name port wait-for-epmd]
   (ni/spawn node
             (fn []
               (let [epmd-conn   (client)

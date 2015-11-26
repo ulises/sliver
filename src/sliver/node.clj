@@ -1,12 +1,13 @@
 (ns sliver.node
-  (:require [borges.type :as t]
-            [borges.decoder :as d]
+  (:require [borges.decoder :as d]
+            [borges.type :as t]
             [bytebuffer.buff :refer [take-ubyte]]
             [co.paralleluniverse.pulsar.actors :as a]
             [co.paralleluniverse.pulsar.core :as c]
             [sliver.epmd :as epmd]
-            [sliver.handshake :as h]
             [sliver.handler :as ha]
+            [sliver.handshake :as h]
+            [sliver.io :as io]
             [sliver.node-interface :as ni]
             [sliver.protocol :as p]
             [sliver.reaper :as r]
@@ -37,50 +38,8 @@
       (ni/whereis node other-name)))
 
   (handle-connection [node connection other-node]
-    (let [reader (ni/spawn
-                  node
-                  #(do
-                     (ni/register node (util/reader-name other-node)
-                                  (ni/self node))
-                     (timbre/debug (format "%s: Reader for %s"
-                                           (util/plain-name node)
-                                           (util/plain-name other-node)))
-                     (p/do-loop connection
-                                (fn handler [[control message]]
-                                  (let [[from to] (p/parse-control control)]
-                                    (dorun
-                                     (for [handler handlers]
-                                       (handler node from to message))))))))
-          writer (ni/spawn
-                  node
-                  #(do
-                     (ni/register node (util/writer-name other-node)
-                                  (ni/self node))
-                     (timbre/debug (format "%s: Writer for %s"
-                                           (util/plain-name node)
-                                           (util/plain-name other-node)))
-                     (loop []
-                       (a/receive
-                        [m]
-                        [:send-msg pid msg]
-                        (do (p/send-message connection pid msg)
-                            (recur))
-
-                        [:send-reg-msg from to msg]
-                        (do (p/send-reg-message connection from to msg)
-                            (recur))
-
-                        ;; if the reader dies, we should close
-                        ;; everything and finish
-                        [:exit _ref _actor throwable]
-                        (do (timbre/debug (format "%s: Reader died."
-                                                  (util/writer-name
-                                                   other-node)))
-                            (.close ^FiberSocketChannel connection))
-
-                        :shutdown (.close ^FiberSocketChannel connection)
-                        :else (do (timbre/debug "ELSE:" m)
-                                  (recur))))))]
+    (let [reader (io/reader node connection handlers other-node)
+          writer (io/writer node connection other-node)]
       (ni/link node writer reader)
       (util/register-shutdown node (util/writer-name other-node))
       :ok))
@@ -91,7 +50,7 @@
           wait-for-server (c/promise)
           server-thread   (s/server-thread node host port wait-for-server)
           wait-for-epmd   (c/promise)
-          epmd-actor      (epmd/foo node name port wait-for-epmd)]
+          epmd-handler    (epmd/epmd-handler node name port wait-for-epmd)]
       @wait-for-epmd
       @wait-for-server
       node))
