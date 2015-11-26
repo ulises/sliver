@@ -309,12 +309,10 @@
           (ni/start spaz)
           (ni/connect bar spaz)
 
-          (Strand/sleep 1000)
-
           (ni/send-registered-message bar (ni/pid bar) 'actor "spaz@127.0.0.1"
                                      'success)
 
-          (Strand/sleep 1000)
+          (Strand/sleep 100)
 
           (is (= 1 @messages-sent))
 
@@ -491,7 +489,6 @@
 
   (testing "dead actors are reaped automatically"
     (let [node    (n/node "bar" "monster" [])
-          _       (Strand/sleep 100)
           process (ni/spawn node (fn []
                                    (Strand/sleep 500)))]
       (Strand/sleep 1000)
@@ -499,7 +496,6 @@
 
   (testing "dead named actors are reaped automatically"
     (let [node    (n/node "bar" "monster" [])
-          _       (Strand/sleep 100)
           process (ni/spawn node (fn []
                                    (ni/register node 'foo (ni/self node))
                                    (Strand/sleep 500)))]

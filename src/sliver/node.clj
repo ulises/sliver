@@ -332,7 +332,8 @@
 (defn node
   ([name cookie] (node name cookie [ha/handle-messages]))
   ([name cookie handlers]
-   (let [[node-name host] (util/maybe-split name)
+   (let [reaper-ready     (c/promise)
+         [node-name host] (util/maybe-split name)
          node             (Node. node-name (or host "localhost") cookie handlers
                                  (atom {:shutdown-notify #{}})
                                  (ref {:pid 0 :serial 0 :creation 0})
@@ -345,6 +346,7 @@
                (fn []
                  (ni/register node '_dead-processes-reaper (ni/self node))
                  (register-shutdown node '_dead-processes-reaper)
+                 (deliver reaper-ready :ok)
                  (loop []
                    (a/receive [m]
                               [:monitor pid] (do (ni/monitor node pid)
@@ -356,4 +358,5 @@
                                 (recur))
                               [:shutdown] (do (timbre/debug "Reaper shutting down...")
                                               :ok)))))
+     @reaper-ready
      node)))
