@@ -91,24 +91,7 @@
           wait-for-server (c/promise)
           server-thread   (s/server-thread node host port wait-for-server)
           wait-for-epmd   (c/promise)
-          epmd-actor      (ni/spawn
-                           node
-                           #(let [epmd-conn   (epmd/client)
-                                  epmd-result (epmd/register epmd-conn
-                                                             (util/plain-name
-                                                              name)
-                                                             port)]
-                              (if (not (= :ok (:status epmd-result)))
-                                (timbre/debug "Error registering with EPMD:"
-                                              name " -> " epmd-result))
-                              (ni/register node 'epmd-socket (ni/self node))
-                              (util/register-shutdown node 'epmd-socket)
-                              (deliver wait-for-epmd :ok)
-                              (a/receive :shutdown
-                                         (do (timbre/debug
-                                              (format "%s: closing epmd connection "
-                                                      (util/plain-name node)))
-                                             (.close ^FiberSocketChannel epmd-conn)))))]
+          epmd-actor      (epmd/foo node name port wait-for-epmd)]
       @wait-for-epmd
       @wait-for-server
       node))
