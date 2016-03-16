@@ -1,22 +1,22 @@
 (ns sliver.reaper
   (:require [co.paralleluniverse.pulsar.actors :as a]
-            [sliver.node-interface :as ni]
+            [sliver.primitive :as p]
             [sliver.util :as u]
             [taoensso.timbre :as log]))
 
 (defn reaper [node reaper-ready]
   (fn []
-    (ni/register node '_dead-processes-reaper (ni/self node))
+    (p/register node '_dead-processes-reaper (p/self node))
     (u/register-shutdown node '_dead-processes-reaper)
     (deliver reaper-ready :ok)
     (loop []
       (a/receive [m]
-                 [:monitor pid] (do (ni/monitor node pid)
+                 [:monitor pid] (do (p/monitor node pid)
                                     (recur))
                  [:exit _ref actor _reason]
-                 (let [pid (ni/pid-for node actor)]
-                   (ni/untrack node pid)
-                   (ni/unregister node (ni/name-for node pid))
+                 (let [pid (p/pid-for node actor)]
+                   (p/untrack node pid)
+                   (p/unregister node (p/name-for node pid))
                    (recur))
                  [:shutdown] (do (log/debug "Reaper shutting down...")
                                  :ok)))))

@@ -3,18 +3,16 @@
             [co.paralleluniverse.pulsar.actors :as a]
             [co.paralleluniverse.pulsar.core :as c]
             [sliver.handshake :as ha]
-            [sliver.node-interface :as ni]
+            [sliver.primitive :as p]
             [sliver.node :as n]
             [sliver.epmd :as epmd]
             [sliver.test-helpers :as h]
-            [sliver.util :as util]
-            [taoensso.timbre :as timbre])
+            [sliver.util :as util])
   (:import [co.paralleluniverse.strands Strand]))
 
 (defn- handler
   [p]
   (fn [node from to message]
-    (timbre/debug from "->" to "::" message)
     (deliver p message)))
 
 
@@ -37,7 +35,7 @@
 
     (let [node     (n/node "bar@127.0.0.1" "monster" [])
           foo-node {:node-name "foo@127.0.0.1"}]
-      (is @(:state (ni/connect node foo-node))))
+      (is @(:state (n/connect node foo-node))))
 
     (teardown)))
 
@@ -49,11 +47,11 @@
           foo  {:node-name "foo@127.0.0.1"}
           foo2 {:node-name "foo2@127.0.0.1"}]
 
-      (ni/connect node foo)
-      (ni/connect node foo2)
+      (n/connect node foo)
+      (n/connect node foo2)
 
-      (is (ni/whereis node 'foo-writer))
-      (is (ni/whereis node 'foo2-writer)))
+      (is (p/whereis node 'foo-writer))
+      (is (p/whereis node 'foo2-writer)))
 
     (teardown)))
 
@@ -64,11 +62,11 @@
     (let [node1 (n/node "bar@127.0.0.1" "monster" [])
           node2 (n/node "baz@127.0.0.1" "monster" [])
           foo   (n/node "foo@127.0.0.1" "monster" [])]
-      (ni/connect node1 foo)
-      (ni/connect node2 foo)
+      (n/connect node1 foo)
+      (n/connect node2 foo)
 
-      (is (ni/whereis node1 'foo-writer))
-      (is (ni/whereis node2 'foo-writer)))
+      (is (p/whereis node1 'foo-writer))
+      (is (p/whereis node2 'foo-writer)))
 
     (teardown)))
 
@@ -77,13 +75,13 @@
     (h/epmd "-daemon" "-relaxed_command_check")
     (let [foo-node (n/node "foo@127.0.0.1" "monster" [])
           bar-node (n/node "bar@127.0.0.1" "monster" [])]
-      (ni/start foo-node)
-      (ni/connect bar-node foo-node)
+      (n/start foo-node)
+      (n/connect bar-node foo-node)
 
-      (is (ni/whereis foo-node 'bar-writer))
+      (is (p/whereis foo-node 'bar-writer))
 
-      (ni/stop foo-node)
-      (ni/stop bar-node)
+      (n/stop foo-node)
+      (n/stop bar-node)
       (h/epmd "-kill")))
 
   (testing "native erlang nodes can connect to sliver nodes"
@@ -91,15 +89,15 @@
     (let [node (n/node "bar@127.0.0.1" "monster" [])]
 
       ;; accept incoming connections
-      (ni/start node)
+      (n/start node)
       (Strand/sleep 1000)
 
       ;; connect from native node foo@127.0.0.1
       (h/escript "resources/connect-from-native.escript")
 
-      (is (ni/whereis node 'foo-writer))
+      (is (p/whereis node 'foo-writer))
 
-      (ni/stop node)
+      (n/stop node)
       (h/epmd "-kill")))
 
   (testing "more than one native erlang node can connect"
@@ -107,17 +105,17 @@
     (let [node (n/node "spaz@127.0.0.1" "monster" [])]
 
       ;; accept incoming connections
-      (ni/start node)
+      (n/start node)
 
       ;; connect from native node foo
       (h/escript "resources/connect-from-native-node-foo.escript")
       ;; ;; connect from native node bar
       (h/escript "resources/connect-from-native-node-bar.escript")
 
-      (is (ni/whereis node 'foo-writer))
-      (is (ni/whereis node 'bar-writer))
+      (is (p/whereis node 'foo-writer))
+      (is (p/whereis node 'bar-writer))
 
-      (ni/stop node)
+      (n/stop node)
       (h/epmd "-kill"))))
 
 (deftest nodes-register-with-epmd
@@ -128,13 +126,13 @@
           node       (n/node node-name "monster" [])
           plain-name (util/plain-name node)]
 
-      (ni/start node)
+      (n/start node)
 
       (is (pos? (c/join
                  (a/spawn
                   #(epmd/port (epmd/client) plain-name)))))
 
-      (ni/stop node)
+      (n/stop node)
       (h/epmd "-kill")))
 
   (testing "nodes deregister with epmd on stop"
@@ -144,14 +142,14 @@
           node       (n/node node-name "monster" [])
           plain-name (util/plain-name node)]
 
-      (ni/start node)
+      (n/start node)
 
       ;; check node registered
       (is (pos? (c/join
                  (a/spawn
                   #(epmd/port (epmd/client) plain-name)))))
 
-      (ni/stop node)
+      (n/stop node)
 
       (is (zero? (c/join
                  (a/spawn
@@ -165,51 +163,51 @@
     (let [message-received (promise)
           _                (h/escript "resources/echo-server.escript")
           other-node       (n/node "foo" "monster" [])
-          node             (ni/connect (n/node "bar@127.0.0.1" "monster"
+          node             (n/connect (n/node "bar@127.0.0.1" "monster"
                                               [(handler message-received)])
                                       other-node)
-          pid              (ni/pid node)
+          pid              (p/pid node)
           message          'ohai2u]
 
-      (a/spawn #(ni/send-registered-message node pid 'echo other-node
+      (a/spawn #(p/send-registered-message node pid 'echo other-node
                                            [pid message]))
 
       (is (= (deref message-received 100 'fail) message))
 
-      (ni/stop node)
+      (n/stop node)
       (h/epmd "-kill")))
 
   (testing "native -connect-> sliver"
     (h/epmd "-daemon" "-relaxed_command_check")
     (let [message-received (promise)
           other-node       "foo@127.0.0.1"
-          node             (ni/start (n/node "bar@127.0.0.1" "monster"
+          node             (n/start (n/node "bar@127.0.0.1" "monster"
                                             [(handler message-received)]))
-          pid              (ni/pid node)
+          pid              (p/pid node)
           message          'ohai2u]
 
       (h/escript "resources/native-to-sliver.echo-server.escript")
 
-      (a/spawn #(ni/send-registered-message node pid 'echo other-node
+      (a/spawn #(p/send-registered-message node pid 'echo other-node
                                            [pid message]))
 
       (is (= (deref message-received 100 'fail) message))
 
-      (ni/stop node)
+      (n/stop node)
       (h/epmd "-kill"))))
 
 (defn- type-x-echo-test [data]
   (h/epmd "-daemon" "-relaxed_command_check")
   (let [message-received (promise)
         other-node       "foo@127.0.0.1"
-        node             (ni/start (n/node "bar@127.0.0.1" "monster"
+        node             (n/start (n/node "bar@127.0.0.1" "monster"
                                           [(handler message-received)]))
-        pid              (ni/pid node)
+        pid              (p/pid node)
         message          data]
 
     (h/escript "resources/native-to-sliver.echo-server.escript")
 
-    (a/spawn #(ni/send-registered-message node pid 'echo other-node
+    (a/spawn #(p/send-registered-message node pid 'echo other-node
                                          [pid message]))
 
     (let [expected (deref message-received 5000 'fail)]
@@ -217,7 +215,7 @@
           (str "T-ex:" (type expected) " -- "
                "T-ac:" (type message))))
 
-    (ni/stop node)
+    (n/stop node)
     (h/epmd "-kill")))
 
 (deftest all-types-echo-test
@@ -287,14 +285,14 @@
     (h/epmd "-daemon" "-relaxed_command_check")
     (let [node (n/node "bar@127.0.0.1" "monster" [])]
 
-      (ni/start node)
+      (n/start node)
 
       (h/escript "resources/wrong.cookie.native->sliver.escript")
 
       ;; if there's no connection to foo, there's no writer for foo
-      (is (nil? (ni/whereis node 'foo-writer)))
+      (is (nil? (p/whereis node 'foo-writer)))
 
-      (ni/stop node)
+      (n/stop node)
       (h/epmd "-kill")))
 
   (testing "wrong cookies sliver -connect-> native"
@@ -305,10 +303,10 @@
       (h/erl foo "random")
       (Strand/sleep 1000)
 
-      (ni/connect node {:node-name "foo"})
+      (n/connect node {:node-name "foo"})
 
       ;; the node hasn't been started, so no connections to foo here
-      (is (nil? (ni/whereis node 'foo-writer)))
+      (is (nil? (p/whereis node 'foo-writer)))
 
       (h/killall "beam.smp")
       (h/epmd "-kill"))))
@@ -320,13 +318,13 @@
           node     (n/node "foo@127.0.0.1" cookie [])
           bar-node {:node-name "bar@127.0.0.1" :cookie cookie}]
 
-      (ni/start node)
+      (n/start node)
 
       ;; connect nodes
       (is (= :ok (c/join
                   (a/spawn #(:status (ha/initiate-handshake bar-node node))))))
 
-      (ni/stop node)
+      (n/stop node)
       (h/epmd "-kill")))
 
   (testing "alive handshake"
@@ -335,7 +333,7 @@
           node     (n/node "spaz@127.0.0.1" cookie [])
           bar-node (n/node "bar@127.0.0.1" cookie [])]
 
-      (ni/start node)
+      (n/start node)
 
       ;; connect nodes
       (is (= :ok (c/join
@@ -346,7 +344,7 @@
       (is (= {:status :alive :connection nil}
              (c/join (a/spawn #(ha/initiate-handshake bar-node node)))))
 
-      (ni/stop node)
+      (n/stop node)
       (h/epmd "-kill")))
 
   (testing "wrong cookies sliver -connect-> sliver"
@@ -355,14 +353,14 @@
           node     (n/node "foo@127.0.0.1" cookie [])
           bar-node {:node-name "bar@127.0.0.1" :cookie "random"}]
 
-      (ni/start node)
+      (n/start node)
 
       ;; connect nodes
       (is (= :error (c/join
                      (a/spawn #(:status (ha/initiate-handshake bar-node
                                                                node))))))
 
-      (ni/stop node)
+      (n/stop node)
       (h/epmd "-kill")))
 
   (testing "wrong cookies sliver -connect-> sliver II"
@@ -370,14 +368,14 @@
     (let [node     (n/node "foo@127.0.0.1" "monster" [])
           bar-node (n/node  "bar@127.0.0.1" "random" [])]
 
-      (ni/start bar-node)
+      (n/start bar-node)
 
-      (ni/connect node bar-node)
+      (n/connect node bar-node)
 
       ;; wrong cookies, so no connections here
-      (is (nil? (ni/whereis node 'bar-writer)))
+      (is (nil? (p/whereis node 'bar-writer)))
 
-      (ni/stop node)
+      (n/stop node)
       (h/epmd "-kill"))))
 
 (deftest all-name-variations-work-test
@@ -387,13 +385,13 @@
           node     (n/node "foo" cookie [])
           bar-node (n/node "bar" cookie [])]
 
-      (ni/start node)
+      (n/start node)
 
       ;; connect nodes
       (is (= :ok (c/join
                   (a/spawn #(:status (ha/initiate-handshake bar-node node))))))
 
-      (ni/stop node)
+      (n/stop node)
       (h/epmd "-kill")))
 
   (testing "foo <-> bar (native)"
@@ -419,14 +417,14 @@
           node     (n/node "foo" cookie [])
           bar-node (n/node "bar@127.0.0.1" cookie [])]
 
-      (ni/start node)
+      (n/start node)
 
       ;; connect nodes
       (is (= :ok (c/join
                   (a/spawn
                    #(:status (ha/initiate-handshake bar-node node))))))
 
-      (ni/stop node)
+      (n/stop node)
       (h/epmd "-kill")))
 
   (testing "foo <-> bar@ip (native)"
@@ -452,7 +450,7 @@
           node     (n/node "foo@127.0.0.1" cookie [])
           bar-node (n/node "bar" cookie [])]
 
-      (ni/start node)
+      (n/start node)
 
       ;; connect nodes
 
@@ -460,7 +458,7 @@
                   (a/spawn
                    #(:status (ha/initiate-handshake bar-node node))))))
 
-      (ni/stop node)
+      (n/stop node)
       (h/epmd "-kill")))
 
   (testing "foo@ip <-> bar (native)"
@@ -486,14 +484,14 @@
           node     (n/node "foo@localhost" cookie [])
           bar-node (n/node "bar@127.0.0.1" cookie [])]
 
-      (ni/start node)
+      (n/start node)
 
       ;; connect nodes
       (is (= :ok (c/join
                   (a/spawn
                    #(:status (ha/initiate-handshake bar-node node))))))
 
-      (ni/stop node)
+      (n/stop node)
       (h/epmd "-kill")))
 
   (testing "foo@ip <-> bar@ip (native)"
@@ -520,19 +518,19 @@
           node     (n/node "foo@127.0.0.1" cookie [])
           bar-node (n/node "bar@127.0.0.1" cookie [])]
 
-      (ni/start node)
+      (n/start node)
 
-      (ni/connect bar-node node)
+      (n/connect bar-node node)
 
       ;; nodes are connected after here
       (let [a (a/spawn
-               #(do (ni/monitor bar-node (ni/whereis bar-node 'foo-writer))
+               #(do (p/monitor bar-node (p/whereis bar-node 'foo-writer))
                     (a/receive [m]
                                [:exit ref actor throwable] :socket-closed
                                :after 15000 :socket-not-closed)))]
         ;; should close the connections; in turn the foo-writer process in
         ;; bar-node should throw an exception since the socket is closed
-        (ni/stop node)
+        (n/stop node)
 
         (is (= :socket-closed (c/join a))))
 

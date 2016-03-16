@@ -1,4 +1,4 @@
-(defproject sliver "0.0.1-SNAPSHOT"
+(defproject sliver "0.0.2-SNAPSHOT"
   :description "A library to ease the simulation of native Erlang nodes."
 
   :url "http://github.com/ulises/sliver"
