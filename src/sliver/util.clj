@@ -42,3 +42,28 @@
 
 (defn reader-name [other-node]
   (symbol (str (plain-name other-node) "-reader")))
+
+(defn vars-to-rebind []
+  (letfn [(rebind? [var]
+            (let [m (meta var)]
+              (and (.startsWith (str (:ns m)) "sliver")
+                   (:rebind m))))]
+    (filter rebind? (vals (ns-map *ns*)))))
+
+(defmacro with-node
+  "with-node rebinds all public node functions which take a node argument with
+  the first argument, so you can call the functions without the node argument.
+  Example:
+  ; (with-node (node ...)
+  ;   (start)
+  ;   (connect other-node))"
+
+  [node & body]
+  (let [ssharp (gensym "node-")]      ; necessary because nested-`
+    `(let [~ssharp ~node]
+       (with-bindings ~(apply hash-map
+                              (mapcat #(vector % `(partial (var-get ~%)
+                                                           ~ssharp))
+                                      (vars-to-rebind)))
+         (do
+           ~@body)))))
