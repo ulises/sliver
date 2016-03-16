@@ -6,13 +6,13 @@ A Clojure library that simulates an Erlang node.
 
 ## Include it
 
-Add `[sliver "0.0.1-SNAPSHOT"]` if you're working with Leiningen. Alternatively, add
+Add `[sliver "0.0.2-SNAPSHOT"]` if you're working with Leiningen. Alternatively, add
 
 ````
     <dependency>
         <groupId>sliver</groupId>
         <artifactId>sliver</artifactId>
-        <version>0.0.1-SNAPSHOT</version>
+        <version>0.0.2-SNAPSHOT</version>
     </dependency>
 ````
 
@@ -25,7 +25,7 @@ First create a node. Require the relevant namespaces you'll be using through thi
 ````clojure
     (ns your-spiffy-new-node.core
         (:require [sliver.node :as n]
-                  [sliver.node-interface :as ni]
+                  [sliver.primitive :as p]
                   [co.paralleluniverse.pulsar.actors :as a]))
 ````
 
@@ -63,7 +63,7 @@ can be used both in `erlang` interop, as well as sending messages to other
 After you've created the node, spawning a new process is done like so:
 
 ````clojure
-    your-spiffy-new-node.core> (ni/spawn foo-node #(println "I don't do much."))   ;; returns the pid
+    your-spiffy-new-node.core> (p/spawn foo-node #(println "I don't do much.")) ;; returns the pid
     I don't do much.
     #borges.type.Pid{:node foo@127.0.0.1, :pid 1, :serial 0, :creation 0}
     your-spiffy-new-node.core>
@@ -80,7 +80,7 @@ As expected, you can spawn as many processes as you like (all credit goes to
 the people who wrote `Pulsar/Quasar`):
 
 ````clojure
-    your-spiffy-new-node.core> (last (for [n (range 100000)] (ni/spawn foo-node #(+ 1 1))))
+    your-spiffy-new-node.core> (last (for [n (range 100000)] (p/spawn foo-node #(+ 1 1))))
     #borges.type.Pid{:node foo@127.0.0.1, :pid 213433, :serial 1, :creation 0}
     your-spiffy-new-node.core> 
 ````
@@ -100,9 +100,9 @@ With `!` (in the `sliver.node-interface` namespace) you can send messages to:
 Let's send a message to a local unregistered processes:
 
 ````clojure
-    your-spiffy-new-node.core> (def pid1 (ni/spawn foo-node #(a/receive m (prn m))))
+    your-spiffy-new-node.core> (def pid1 (p/spawn foo-node #(a/receive m (prn m))))
     #'your-spiffy-new-node.core/pid1
-    your-spiffy-new-node.core> (ni/! foo-node pid1 'ohai)
+    your-spiffy-new-node.core> (p/! foo-node pid1 'ohai)
     nil
     ohai
     your-spiffy-new-node.core> 
@@ -116,23 +116,23 @@ The code above:
 Let's try the same thing, but with registered processes:
 
 ````clojure
-    your-spiffy-new-node.core> (def pid1 (ni/spawn 
+    your-spiffy-new-node.core> (def pid1 (p/spawn
                                            foo-node
                                            #(do
-                                             (ni/register foo-node
+                                             (p/register foo-node
                                                           'a-process
-                                                          (ni/self foo-node))
+                                                          (p/self foo-node))
                                              (a/receive m (prn m)))))
     #'your-spiffy-new-node.core/pid1
     2015-Nov-16 21:09:50 +0000 salad-fingers DEBUG [sliver.node] - Registering  #borges.type.Pid{:node foo@127.0.0.1, :pid 213435, :serial 1, :creation 0}  as  a-process
-    your-spiffy-new-node.core> (ni/! foo-node 'a-process 'ohai)
+    your-spiffy-new-node.core> (p/! foo-node 'a-process 'ohai)
     nil
     ohai
     your-spiffy-new-node.core> 
 ````
 
 The code above is identical to the first example with the exception that the
-process registers itself via `ni/register` and that we send (`!`) the message
+process registers itself via `p/register` and that we send (`!`) the message
 to the process' name and not its `pid`.
 
 Neat.
@@ -159,7 +159,7 @@ Start an erlang node:
 Now connect sliver to it:
 
 ````clojure
-    your-spiffy-new-node.core> (ni/connect foo-node {:node-name "bar@127.0.0.1"})
+    your-spiffy-new-node.core> (p/connect foo-node {:node-name "bar@127.0.0.1"})
     2015-Nov-16 21:28:26 +0000 salad-fingers DEBUG [sliver.handshake] - SEND NAME: foo@127.0.0.1
     2015-Nov-16 21:28:26 +0000 salad-fingers DEBUG [sliver.handshake] - DECODED:  :ok
     2015-Nov-16 21:28:26 +0000 salad-fingers DEBUG [sliver.handshake] - DECODED:  {:version 5, :flag 229372, :challenge 1347765539, :name bar@127.0.0.1}
@@ -208,7 +208,7 @@ it:
 After that, send it a message from the `sliver` node:
 
 ````clojure
-    your-spiffy-new-node.core> (ni/spawn foo-node #(ni/! foo-node ['shell "bar@127.0.0.1"] 'hai))
+    your-spiffy-new-node.core> (p/spawn foo-node #(p/! foo-node ['shell "bar@127.0.0.1"] 'hai))
     #borges.type.Pid{:node foo@127.0.0.1, :pid 4, :serial 0, :creation 0}
     your-spiffy-new-node.core> 2015-Nov-16 21:47:01 +0000 salad-fingers DEBUG [sliver.node] - Sending reg msg to: shell  on  bar@127.0.0.1
     2015-Nov-16 21:47:01 +0000 salad-fingers DEBUG [sliver.protocol] - SEND-REG-MESSAGE: Sent 54 bytes
@@ -241,12 +241,12 @@ interlocutor. Once it receives it, it replies with a message. A sort of
 ping/pong action:
 
 ````clojure
-    your-spiffy-new-node.core> (def ping (ni/spawn foo-node
+    your-spiffy-new-node.core> (def ping (p/spawn foo-node
                                                    #(do
-                                                     (ni/register foo-node 'pong (ni/self foo-node))
+                                                     (p/register foo-node 'pong (p/self foo-node))
                                                      (a/receive ['ping from]
                                                        (do (prn "Message received...replying")
-                                                           (ni/! foo-node from 'pong)
+                                                           (p/! foo-node from 'pong)
                                                            (prn "Finishing now."))))))
     #'your-spiffy-new-node.core/ping
     2015-Nov-16 23:55:28 +0000 salad-fingers DEBUG [sliver.node] - Registering  #borges.type.Pid{:node foo@127.0.0.1, :pid 6, :serial 0, :creation 0}  as  pong

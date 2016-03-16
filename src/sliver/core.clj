@@ -1,6 +1,5 @@
 (ns sliver.core
   (:require [sliver.node :as n]
-            [sliver.node-interface :as ni]
             [taoensso.timbre :as log]))
 
 (def node (atom nil))
@@ -12,6 +11,6 @@
 
 (defn run []
   (when @node
-    (ni/stop @node))
+    (n/stop @node))
   (reset! node (n/node "bar@127.0.0.1" "monster" [#'log-handler]))
-  (ni/start @node))
+  (n/start @node))

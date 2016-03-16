@@ -1,16 +1,8 @@
 (ns sliver.handshake-test
-  (:require [clojure.java.io :as io]
-            [clojure.test :refer :all]
-            [co.paralleluniverse.pulsar.actors :as a]
-            [co.paralleluniverse.pulsar.core :as c]
+  (:require [clojure.test :refer :all]
             [sliver.handshake :refer :all]
-            [sliver.node :as n]
-            [sliver.node-interface :as ni]
-            [sliver.test-helpers :as h]
-            [taoensso.timbre :as timbre])
-  (:import [java.nio ByteBuffer]
-           [java.net NetworkInterface InetAddress]
-           [co.paralleluniverse.strands Strand]))
+            [sliver.test-helpers :as h])
+  (:import [java.nio ByteBuffer]))
 
 (deftest test-read-packet
   (testing "reads a packet"

@@ -1,15 +1,15 @@
 (ns sliver.server-thread
   (:require [sliver.handshake :as h]
-            [sliver.node-interface :as ni]
+            [sliver.primitive :as p]
             [sliver.tcp :as tcp]
             [sliver.util :as util]
             [taoensso.timbre :as log]))
 
 (defn server-thread [node host port wait-for-server]
-  (ni/spawn node
+  (p/spawn node
             (fn []
               (let [server (tcp/server host port)]
-                (ni/register node 'server (ni/self node))
+                (p/register node 'server (p/self node))
                 (util/register-shutdown node 'server)
                 (deliver wait-for-server :ok)
                 (loop []
@@ -22,6 +22,6 @@
                       (if (= :ok status)
                         (do (log/debug "Connection established. Saving to:"
                                           other-node)
-                            (ni/handle-connection node connection other-node))
+                            (p/handle-connection node connection other-node))
                         (log/debug "Handshake failed :("))))
                   (recur))))))

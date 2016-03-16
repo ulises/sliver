@@ -1,11 +1,7 @@
 (ns sliver.epmd
   (:require [bytebuffer.buff :refer [take-ubyte take-ushort]]
-            [co.paralleluniverse.pulsar.actors :as a]
-            [sliver.node-interface :as ni]
             [sliver.tcp :as tcp]
-            [sliver.util :as util]
-            [taoensso.timbre :as log])
-  (:import [co.paralleluniverse.fibers.io FiberSocketChannel]))
+            [sliver.util :as util]))
 
 (def PORT 4369)
 
@@ -46,20 +42,3 @@
   (when name
     (tcp/send-bytes conn (port2-req name))
     (port2-resp (tcp/read-handshake-packet conn))))
-
-(defn epmd-handler [node name port wait-for-epmd]
-  (ni/spawn node
-            (fn []
-              (let [epmd-conn   (client)
-                    epmd-result (register epmd-conn name port)]
-                (if (not (= :ok (:status epmd-result)))
-                  (log/debug "Error registering with EPMD:"
-                             name " -> " epmd-result))
-                (ni/register node 'epmd-socket (ni/self node))
-                (util/register-shutdown node 'epmd-socket)
-                (deliver wait-for-epmd :ok)
-                (a/receive :shutdown
-                           (do (log/debug
-                                (format "%s: closing epmd connection "
-                                        (util/plain-name node)))
-                               (.close ^FiberSocketChannel epmd-conn)))))))
