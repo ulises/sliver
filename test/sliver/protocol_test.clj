@@ -6,28 +6,34 @@
             [sliver.test-helpers :refer [bytes-seq]])
   (:import [java.nio ByteBuffer]))
 
-(defonce raw-bytes (ByteBuffer/wrap
+(deftest test-read-pass-through-packet
+  (let [raw-bytes (ByteBuffer/wrap
+                   (byte-array '(0 0 0 51 112 131 104 4 97 6 103 100 0 13 102
+                                   111 111 64 49 50 55 46 48 46 48 46 49 0 0 0
+                                   38 0 0 0 0 3 100 0 0 100 0 7 110 111 101 120
+                                   105 115 116 131 100 0 2 104 105)))
+        pm        (ByteBuffer/wrap (byte-array '(131 104 4 97 6 103 100 0 13 102
+                                                     111 111 64 49 50 55 46 48
+                                                     46 48 46 49 0 0 0 38 0 0 0
+                                                     0 3 100 0 0 100 0 7 110 111
+                                                     101 120 105 115 116 131 100
+                                                     0 2 104 105)))]
+    (is (= pm (read-pass-through-packet raw-bytes)))))
+
+(deftest test-write-pass-through-packet
+  (let [pm         (pass-through-message [(int 6)
+                                          (borges.type/pid
+                                           (symbol "foo@127.0.0.1")
+                                           38 0 3)
+                                          (symbol "")
+                                          'noexist]
+                                         'hi)
+        raw-bytes  (ByteBuffer/wrap
                     (byte-array '(0 0 0 51 112 131 104 4 97 6 103 100 0 13 102
                                     111 111 64 49 50 55 46 48 46 48 46 49 0 0 0
                                     38 0 0 0 0 3 100 0 0 100 0 7 110 111 101 120
-                                    105 115 116 131 100 0 2 104 105))))
-
-(deftest test-read-pass-through-packet
-  (is (= (ByteBuffer/wrap (byte-array '(131 104 4 97 6 103 100 0 13 102 111 111
-                                            64 49 50 55 46 48 46 48 46 49 0 0 0
-                                            38 0 0 0 0 3 100 0 0 100 0 7 110 111
-                                            101 120 105 115 116 131 100 0 2 104
-                                            105)))
-         (read-pass-through-packet raw-bytes))))
-
-(deftest test-write-pass-through-packet
-  (is (= raw-bytes
-         (pass-through-message [(int 6)
-                                (borges.type/pid (symbol "foo@127.0.0.1")
-                                                 38 0 3)
-                                (symbol "")
-                                'noexist]
-                               'hi))))
+                                    105 115 116 131 100 0 2 104 105)))]
+    (is (= raw-bytes pm))))
 
 (deftest test-parse-control
   (let [a-pid  (pid (symbol "foo@127.0.0.1") 38 0 0)

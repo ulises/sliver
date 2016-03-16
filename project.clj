@@ -17,13 +17,13 @@
   :scm {:name "git"
         :url "https://github.com/ulises/sliver"}
 
-  :dependencies [[org.clojure/clojure "1.6.0"]
+  :dependencies [[org.clojure/clojure "1.7.0"]
                  [bytebuffer "0.2.0"]
                  [com.taoensso/timbre "3.3.1"]
                  [borges "0.1.6"]
-                 [co.paralleluniverse/pulsar "0.7.3"]]
+                 [co.paralleluniverse/pulsar "0.7.4"]]
 
-  :java-agents [[co.paralleluniverse/quasar-core "0.7.3"]]
+  :java-agents [[co.paralleluniverse/quasar-core "0.7.4"]]
   :jvm-opts ["-Dco.paralleluniverse.pulsar.instrument.auto=all"]
   ;; :bootclasspath true
 
