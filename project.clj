@@ -25,7 +25,6 @@
 
   :java-agents [[co.paralleluniverse/quasar-core "0.7.4"]]
   :jvm-opts ["-Dco.paralleluniverse.pulsar.instrument.auto=all"]
-  ;; :bootclasspath true
 
   :global-vars {*warn-on-reflection* true}
   :aot :all)
