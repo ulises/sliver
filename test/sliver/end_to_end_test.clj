@@ -152,8 +152,8 @@
       (n/stop node)
 
       (is (zero? (c/join
-                 (a/spawn
-                  #(epmd/port (epmd/client) plain-name)))))
+                  (a/spawn
+                   #(epmd/port (epmd/client) plain-name)))))
 
       (h/epmd "-kill"))))
 
@@ -197,7 +197,6 @@
       (h/epmd "-kill"))))
 
 (defn- type-x-echo-test [data]
-  (h/epmd "-daemon" "-relaxed_command_check")
   (let [message-received (promise)
         other-node       "foo@127.0.0.1"
         node             (n/start (n/node "bar@127.0.0.1" "monster"
@@ -214,11 +213,10 @@
       (is (= expected message)
           (str "T-ex:" (type expected) " -- "
                "T-ac:" (type message))))
-
-    (n/stop node)
-    (h/epmd "-kill")))
+    (n/stop node)))
 
 (deftest all-types-echo-test
+  (h/epmd "-daemon" "-relaxed_command_check")
   (doseq [t [(int 1)
              ;; 123.456 ;; This works ok with the exception that we read a
              ;; Double instead of a float
@@ -239,7 +237,8 @@
              ;; Data is actually  returned ok
              (seq [1 2 3])
              (map identity [1 2 3])]]
-      (type-x-echo-test t)))
+    (type-x-echo-test t))
+  (h/epmd "-kill"))
 
 (deftest native-handshake-test
   (testing "successful handshake"

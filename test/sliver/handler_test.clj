@@ -4,7 +4,8 @@
              [co.paralleluniverse.pulsar.core :as c]
              [sliver.primitive :as p]
              [sliver.node :as n]
-             [sliver.test-helpers :as h]))
+             [sliver.test-helpers :as h])
+  (:import [co.paralleluniverse.strands Strand]))
 
 (deftest handler-ping-pong-test
   (testing "named processes sliver -> sliver"
@@ -18,16 +19,16 @@
 
       ;; pong
       (p/spawn foo
-                #(do
-                   (p/register foo 'pong (p/self foo))
-                   (a/receive 'ping (p/! foo ['ping "bar"] 'pong))))
+               #(do
+                  (p/register foo 'pong (p/self foo))
+                  (a/receive 'ping (p/! foo ['ping "bar"] 'pong))))
       ;; ping
       (p/spawn bar
-                #(do
-                   (p/register bar 'ping (p/self bar))
-                   (p/! bar ['pong "foo"] 'ping)
-                   (a/receive 'pong (deliver done? true)
-                              :after 1000 (deliver done? false))))
+               #(do
+                  (p/register bar 'ping (p/self bar))
+                  (p/! bar ['pong "foo"] 'ping)
+                  (a/receive 'pong (deliver done? true)
+                             :after 1000 (deliver done? false))))
 
       (is (deref done? 2000 false))
 
@@ -46,15 +47,15 @@
 
       ;; pong
       (let [ping (p/spawn foo
-                           #(a/receive
-                             [from 'ping] (p/! foo from [(p/self foo)
-                                                          'pong])))]
+                          #(a/receive
+                            [from 'ping] (p/! foo from [(p/self foo)
+                                                        'pong])))]
         ;; ping
         (p/spawn bar
-                  #(do
-                     (p/! bar ping [(p/self bar) 'ping])
-                     (a/receive [from 'pong] (deliver done? true)
-                                :after 1000 (deliver done? false))))
+                 #(do
+                    (p/! bar ping [(p/self bar) 'ping])
+                    (a/receive [from 'pong] (deliver done? true)
+                               :after 1000 (deliver done? false))))
 
         (is (deref done? 2000 false)))
 
@@ -100,6 +101,7 @@
       (n/start node)
 
       (p/spawn node pong)
+      (Strand/sleep 1000)
 
       (h/escript "resources/named-processes-erlang->sliver.escript")
 
@@ -118,10 +120,10 @@
       (n/connect node {:node-name "bar"})
 
       (p/spawn node #(let [me (p/self node)]
-                        (p/register node 'me me)
-                        (p/! node ['echo "bar"] [me 'hai])
-                        (a/receive [me 'hai] (deliver done? true)
-                                   :after 2000 (deliver done? false))))
+                       (p/register node 'me me)
+                       (p/! node ['echo "bar"] [me 'hai])
+                       (a/receive [me 'hai] (deliver done? true)
+                                  :after 2000 (deliver done? false))))
 
       (is @done?)
 
@@ -134,14 +136,13 @@
 
       (n/start node)
 
-      (Thread/sleep 100)
-
       (p/spawn node #(let [me (p/self node)]
-                        (p/register node 'me me)
-                        (a/receive [from 'hai] (do (p/! node from
-                                                         [from 'hai])
-                                                   (deliver done? true))
-                                   :after 5000 (deliver done? false))))
+                       (p/register node 'me me)
+                       (a/receive [from 'hai] (do (p/! node from
+                                                       [from 'hai])
+                                                  (deliver done? true))
+                                  :after 5000 (deliver done? false))))
+      (Strand/sleep 1000)
 
       (h/escript "resources/unnamed-processes-erlang->sliver.escript")
 

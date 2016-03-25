@@ -211,15 +211,15 @@
           node   (n/node "bar" "monster" [])]
 
       (p/spawn node (fn []
-                       (p/register node 'actor (p/self node))
-                       (a/receive m (deliver result m))))
+                      (p/register node 'actor (p/self node))
+                      (a/receive m (deliver result m))))
       (Strand/sleep 1000)
 
       (with-redefs [sliver.protocol/send-reg-message
                     (fn [& _]
                       (is false "messages should not hit the wire"))]
         (p/send-registered-message node 'ignored-pid 'actor "bar@127.0.0.1"
-                                    'success))
+                                   'success))
 
       (is (= 'success (deref result 1000 'failed)))))
 
@@ -248,7 +248,7 @@
           (n/connect bar spaz)
 
           (p/send-registered-message bar (p/pid bar) 'actor "spaz@127.0.0.1"
-                                      'success)
+                                     'success)
 
           (is (= 1 @messages-sent))
 
@@ -265,8 +265,8 @@
         (let [bar  (n/node "bar" "monster" [])
               spaz (n/node "spaz" "monster" [])
               _    (p/register bar 'actor
-                                (p/spawn bar #(a/receive m :ok
-                                                          :after 5000 :ok)))]
+                               (p/spawn bar #(a/receive m :ok
+                                                        :after 5000 :ok)))]
 
           (n/start spaz)
           (n/connect bar spaz)
@@ -289,19 +289,19 @@
       (let [result (atom 0)
             node   (n/node "bar" "monster" [])
             pid1   (p/spawn node (fn []
-                                    (p/register node 'pong (p/self node))
-                                    (a/receive
-                                     'ping (p/send-registered-message node
-                                                                       'ignored
-                                                                       'ping
-                                                                       "bar@127.0.0.1"
-                                                                       'pong))))]
+                                   (p/register node 'pong (p/self node))
+                                   (a/receive
+                                    'ping (p/send-registered-message node
+                                                                     'ignored
+                                                                     'ping
+                                                                     "bar@127.0.0.1"
+                                                                     'pong))))]
         (p/spawn node (fn []
-                         (p/register node 'ping (p/self node))
-                         (p/send-registered-message node 'ignored 'pong
-                                                     "bar@127.0.0.1" 'ping)
-                         (a/receive
-                          'pong (reset! result 1))))
+                        (p/register node 'ping (p/self node))
+                        (p/send-registered-message node 'ignored 'pong
+                                                   "bar@127.0.0.1" 'ping)
+                        (a/receive
+                         'pong (reset! result 1))))
 
         ;; because race condition between actors ping-ponging and assertion
         (Strand/sleep 1000)
@@ -316,12 +316,12 @@
                   registered? (promise)
                   node        (n/node "bar" "monster" [])
                   _pid        (p/spawn node (fn []
-                                               (p/register node name
-                                                            (p/self node))
-                                               (deliver registered? true)
-                                               (a/receive 'hai
-                                                          (deliver result
-                                                                   true))))]
+                                              (p/register node name
+                                                          (p/self node))
+                                              (deliver registered? true)
+                                              (a/receive 'hai
+                                                         (deliver result
+                                                                  true))))]
               @registered?
 
               ;; sends message to locally registered actor
@@ -365,7 +365,7 @@
     (let [result (promise)
           node   (n/node "bar" "monster" [])
           pid    (p/spawn node (fn []
-                                  (a/receive _ (deliver result true))))]
+                                 (a/receive _ (deliver result true))))]
       (with-redefs [sliver.protocol/send-message     (fn [& _]
                                                        (is false
                                                            "should not hit the wire"))
@@ -409,9 +409,9 @@
       ;; need to call from within actor because internally
       ;; this uses (self node)
       (p/spawn bar (fn []
-                      (log/debug "Sending...")
-                      (p/! bar [actor-name "spaz@127.0.0.1"]
-                            (into [] (range 1000)))))
+                     (log/debug "Sending...")
+                     (p/! bar [actor-name "spaz@127.0.0.1"]
+                          (into [] (range 1000)))))
 
       (is (deref result 10000 false))
 
@@ -422,7 +422,7 @@
   (testing "! to registered process returns message"
     (let [node (n/node "foo@127.0.0.1" "monster")
           p    (p/spawn node #(do (p/register node 'p (p/self node))
-                                   (a/receive)))]
+                                  (a/receive)))]
       (Strand/sleep 100)
 
       (is (= 'ohai (p/! node 'p 'ohai)))))
@@ -439,7 +439,7 @@
           spaz (n/node "spaz@127.0.0.1" "monster")
           bar  (n/node "bar@127.0.0.1" "monster")
           p    (p/spawn bar #(do (p/register bar 'p (p/self bar))
-                                  (a/receive)))]
+                                 (a/receive)))]
       (n/start bar)
       (n/connect spaz bar)
 
@@ -464,15 +464,15 @@
   (testing "dead actors are reaped automatically"
     (let [node    (n/node "bar" "monster" [])
           process (p/spawn node (fn []
-                                   (Strand/sleep 500)))]
+                                  (Strand/sleep 500)))]
       (Strand/sleep 1000)
       (is (nil? (p/actor-for node process)))))
 
   (testing "dead named actors are reaped automatically"
     (let [node    (n/node "bar" "monster" [])
           process (p/spawn node (fn []
-                                   (p/register node 'foo (p/self node))
-                                   (Strand/sleep 500)))]
+                                  (p/register node 'foo (p/self node))
+                                  (Strand/sleep 500)))]
       (Strand/sleep 1000)
       (is (nil? (p/whereis node 'foo))))))
 
@@ -481,10 +481,10 @@
     (let [result  (promise)
           node    (n/node "bar" "monster" [])
           monitor (p/spawn node
-                            (fn []
-                              (p/monitor node
-                                          (p/spawn node #(+ 1 1)))
-                              (a/receive m (deliver result m))))]
+                           (fn []
+                             (p/monitor node
+                                        (p/spawn node #(+ 1 1)))
+                             (a/receive m (deliver result m))))]
       (is (and (= :exit (first @result))
                (nil? (last @result))))))
 
@@ -492,11 +492,11 @@
     (let [result  (promise)
           node    (n/node "bar" "monster" [])
           monitor (p/spawn node
-                            (fn []
-                              (p/monitor node
-                                          (p/spawn node
-                                                    #(throw (RuntimeException. "arse"))))
-                              (a/receive m (deliver result m))))]
+                           (fn []
+                             (p/monitor node
+                                        (p/spawn node
+                                                 #(throw (RuntimeException. "arse"))))
+                             (a/receive m (deliver result m))))]
       (is (= :exit (first @result)))
       (is (= RuntimeException (class (last @result))))))
 
@@ -564,10 +564,10 @@
     (let [result  (promise)
           node    (n/node "bar" "monster" [])
           monitor (p/spawn node
-                            (fn []
-                              (p/spawn-monitor node
-                                                #(+ 1 1))
-                              (a/receive m (deliver result m))))]
+                           (fn []
+                             (p/spawn-monitor node
+                                              #(+ 1 1))
+                             (a/receive m (deliver result m))))]
       (is (and (= :exit (first @result))
                (nil? (last @result))))))
 
@@ -575,11 +575,11 @@
     (let [result  (promise)
           node    (n/node "bar" "monster" [])
           monitor (p/spawn node
-                            (fn []
-                              (p/spawn-monitor
-                               node
-                               #(throw (RuntimeException. "arse")))
-                              (a/receive m (deliver result m))))]
+                           (fn []
+                             (p/spawn-monitor
+                              node
+                              #(throw (RuntimeException. "arse")))
+                             (a/receive m (deliver result m))))]
       (is (= :exit (first @result)))
       (is (= RuntimeException (class (last @result)))))))
 
@@ -639,9 +639,9 @@
                         (do (swap! all-dead? inc)
                             (/ 1 0))
                         (let [spawned (p/spawn node
-                                                (fn []
-                                                  (f (dec n) f))
-                                                {:trap true})]
+                                               (fn []
+                                                 (f (dec n) f))
+                                               {:trap true})]
                           (p/link node spawned)
                           (a/receive [:exit _ _ _]
                                      (swap! all-dead? inc)))))]
@@ -657,11 +657,11 @@
           node      (n/node "bar" "monster" [])]
 
       (p/spawn node
-                #(do
-                   (p/spawn-link node
-                                  (fn []
-                                    (Strand/sleep 500)))
-                   (a/receive _ (deliver all-dead? false))))
+               #(do
+                  (p/spawn-link node
+                                (fn []
+                                  (Strand/sleep 500)))
+                  (a/receive _ (deliver all-dead? false))))
 
       (is (deref all-dead? 1000 true))))
 
@@ -670,11 +670,11 @@
           node        (n/node "bar" "monster" [])]
 
       (p/spawn node
-                #(do
-                   (p/spawn-link node
-                                  (fn []
-                                    (Strand/sleep 500)))
-                   (a/receive [:exit _ _ _] (deliver exit-recvd? true)))
-                {:trap true})
+               #(do
+                  (p/spawn-link node
+                                (fn []
+                                  (Strand/sleep 500)))
+                  (a/receive [:exit _ _ _] (deliver exit-recvd? true)))
+               {:trap true})
 
       (is (deref exit-recvd? 1000 false)))))

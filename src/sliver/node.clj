@@ -16,10 +16,10 @@
    (p/actor-for
     node
     (p/spawn node
-           #(let [{:keys [status connection]} (h/initiate-handshake node other-node)]
-              (if (= :ok status)
-                (p/handle-connection node connection other-node))
-              node)))))
+             #(let [{:keys [status connection]} (h/initiate-handshake node other-node)]
+                (if (= :ok status)
+                  (p/handle-connection node connection other-node))
+                node)))))
 
 (defn start [{:keys [host] :as node}]
   (let [name            (util/plain-name node)
