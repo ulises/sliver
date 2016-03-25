@@ -197,6 +197,7 @@
       (h/epmd "-kill"))))
 
 (defn- type-x-echo-test [data]
+  (h/epmd "-daemon" "-relaxed_command_check")
   (let [message-received (promise)
         other-node       "foo@127.0.0.1"
         node             (n/start (n/node "bar@127.0.0.1" "monster"
@@ -206,8 +207,6 @@
 
     (h/escript "resources/native-to-sliver.echo-server.escript")
 
-    (Strand/sleep 1000)
-
     (a/spawn #(p/send-registered-message node pid 'echo other-node
                                          [pid message]))
 
@@ -215,10 +214,10 @@
       (is (= expected message)
           (str "T-ex:" (type expected) " -- "
                "T-ac:" (type message))))
-    (n/stop node)))
+    (n/stop node))
+  (h/epmd "-kill"))
 
 (deftest all-types-echo-test
-  (h/epmd "-daemon" "-relaxed_command_check")
   (doseq [t [(int 1)
              ;; 123.456 ;; This works ok with the exception that we read a
              ;; Double instead of a float
@@ -239,8 +238,7 @@
              ;; Data is actually  returned ok
              (seq [1 2 3])
              (map identity [1 2 3])]]
-    (type-x-echo-test t))
-  (h/epmd "-kill"))
+    (type-x-echo-test t)))
 
 (deftest native-handshake-test
   (testing "successful handshake"
