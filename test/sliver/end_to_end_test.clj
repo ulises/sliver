@@ -206,6 +206,8 @@
 
     (h/escript "resources/native-to-sliver.echo-server.escript")
 
+    (Strand/sleep 1000)
+
     (a/spawn #(p/send-registered-message node pid 'echo other-node
                                          [pid message]))
 
