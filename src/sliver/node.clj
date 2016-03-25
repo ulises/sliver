@@ -11,8 +11,7 @@
 (defrecord Node [node-name host cookie handlers state pid-tracker ref-tracker
                  actor-tracker reverse-actor-tracker actor-registry])
 
-(defn #^{:rebind true :dynamic true}
-  connect [node other-node]
+(defn connect [node other-node]
   (c/join
    (p/actor-for
     node
@@ -22,8 +21,7 @@
                 (p/handle-connection node connection other-node))
               node)))))
 
-(defn #^{:rebind true :dynamic true}
-  start [{:keys [host] :as node}]
+(defn start [{:keys [host] :as node}]
   (let [name            (util/plain-name node)
         port            (+ 1024 (rand-int 50000))
         wait-for-server (c/promise)
@@ -34,8 +32,7 @@
     @wait-for-server
     node))
 
-(defn #^{:rebind true :dynamic true}
-  stop [{:keys [state] :as node}]
+(defn stop [{:keys [state] :as node}]
   (timbre/debug (format "%s: stopping..." (util/plain-name node)))
   (dorun
    (for [writer (:shutdown-notify @state)]

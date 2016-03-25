@@ -8,36 +8,29 @@
             [sliver.util :as util]
             [taoensso.timbre :as timbre]))
 
-(defn #^{:rebind true :dynamic true}
-  whereis [{:keys [actor-registry] :as node} name]
+(defn whereis [{:keys [actor-registry] :as node} name]
   (get @actor-registry name))
 
-(defn #^{:rebind true :dynamic true}
-  actor-for [{:keys [actor-tracker] :as node} pid]
+(defn actor-for [{:keys [actor-tracker] :as node} pid]
   (get @actor-tracker pid))
 
-(defn #^{:rebind true :dynamic true}
-  pid-for [{:keys [reverse-actor-tracker] :as node} actor]
+(defn pid-for [{:keys [reverse-actor-tracker] :as node} actor]
   (get @reverse-actor-tracker actor))
 
-(defn #^{:rebind true :dynamic true}
-  name-for [{:keys [actor-registry] :as node} pid]
+(defn name-for [{:keys [actor-registry] :as node} pid]
   (first (first (filter (fn [[k v]]
                           (= pid v)) @actor-registry))))
 
-(defn #^{:rebind true :dynamic true}
-  self [node]
+(defn self [node]
   (if-let [pid (pid-for node @a/self)]
     pid (recur node)))
 
-(defn #^{:rebind true :dynamic true}
-  get-writer [node other-node]
+(defn get-writer [node other-node]
   (let [other-name (util/writer-name other-node)]
     (whereis node other-name)))
 
 ;; pid(0, 42, 0) ! message
-(defn #^{:rebind true :dynamic true}
-  send-message [node pid message]
+(defn send-message [node pid message]
   (when pid
     (let [other-node-name (util/plain-name (name (:node pid)))
           other-node      {:node-name other-node-name}]
@@ -52,8 +45,7 @@
       message)))
 
 ;; equivalent to {to, 'name@host'} ! message
-(defn #^{:rebind true :dynamic true}
-  send-registered-message [node from to other-node message]
+(defn send-registered-message [node from to other-node message]
   ;; check other-node first, if local, check registered actor
   (if (= (util/plain-name other-node) (util/plain-name node))
     (if-let [pid (whereis node to)]
@@ -97,14 +89,12 @@
 
 (defmethod !* nil [_ _ _])
 
-(defn #^{:rebind true :dynamic true}
-  ! [node maybe-actor-or-pid message]
+(defn ! [node maybe-actor-or-pid message]
   (!* node maybe-actor-or-pid message))
 
 ;; creates a new pid. This is internal, and is likely to be used in
 ;; conjunction with some form of custom spawn implementation
-(defn #^{:rebind true :dynamic true}
-  pid [{:keys [pid-tracker] :as node}]
+(defn pid [{:keys [pid-tracker] :as node}]
   (dosync
    (let [current-pid    (:pid @pid-tracker)
          current-serial (:serial @pid-tracker)
@@ -123,33 +113,29 @@
               :serial next-serial)
        new-pid))))
 
-(defn #^{:rebind true :dynamic true}
-  track-pid [{:keys [actor-tracker reverse-actor-tracker] :as node} pid actor]
+(defn track-pid [{:keys [actor-tracker reverse-actor-tracker] :as node}
+                 pid actor]
   (dosync
    (alter actor-tracker assoc pid actor)
    (alter reverse-actor-tracker assoc actor pid))
   pid)
 
-(defn #^{:rebind true :dynamic true}
-  untrack [{:keys [actor-tracker reverse-actor-tracker] :as node} pid]
+(defn untrack [{:keys [actor-tracker reverse-actor-tracker] :as node} pid]
   (dosync
    (let [actor (actor-for node pid)]
      (alter actor-tracker dissoc pid)
      (alter reverse-actor-tracker dissoc actor)
      pid)))
 
-(defn #^{:rebind true :dynamic true}
-  monitor [node pid]
+(defn monitor [node pid]
   (when-let [actor (actor-for node pid)]
     (a/watch! actor)))
 
-(defn #^{:rebind true :dynamic true}
-  demonitor [node pid monitor]
+(defn demonitor [node pid monitor]
   (when-let [actor (actor-for node pid)]
     (a/unwatch! actor monitor)))
 
-(defn #^{:rebind true :dynamic true}
-  link
+(defn link
   ([node pid]
    (when-let [actor (actor-for node pid)]
      (a/link! actor)))
@@ -158,8 +144,7 @@
      (when-let [actor2 (actor-for node pid2)]
        (a/link! actor1 actor2)))))
 
-(defn #^{:rebind true :dynamic true}
-  spawn
+(defn spawn
   ([node f]
    (spawn node f {:trap false}))
   ([node f {:keys [trap] :or {trap false}}]
@@ -173,14 +158,12 @@
      (! node '_dead-processes-reaper [:monitor pid])
      pid)))
 
-(defn #^{:rebind true :dynamic true}
-  spawn-monitor [node f]
+(defn spawn-monitor [node f]
   (let [pid (spawn node f)]
     (monitor node pid)))
 
 ;; these are certainly NOT atomic
-(defn #^{:rebind true :dynamic true}
-  spawn-link
+(defn spawn-link
   ([node f]
    (spawn-link node f {:trap false}))
   ([node f opts]
@@ -191,21 +174,18 @@
 ;; this is likely to suffer from a race condition just like track-pid
 ;; in particular because of the use of whereis, we probably need a CAS
 ;; type approach here
-(defn #^{:rebind true :dynamic true}
-  register [{:keys [actor-registry] :as node} name pid]
+(defn register [{:keys [actor-registry] :as node} name pid]
   (when (and name
-             (not (whereis node name)))
+             (not (get @actor-registry name)))
     (swap! actor-registry assoc name pid)
     (timbre/debug "Registering " pid " as " name)
     name))
 
-(defn #^{:rebind true :dynamic true}
-  unregister [{:keys [actor-registry] :as node} name]
+(defn unregister [{:keys [actor-registry] :as node} name]
   (swap! actor-registry dissoc name)
   name)
 
-(defn #^{:rebind true :dynamic true}
-  make-ref [{:keys [ref-tracker] :as node} pid]
+(defn make-ref [{:keys [ref-tracker] :as node} pid]
   (dosync
    (let [creation      (:creation @ref-tracker)
          id            (:id @ref-tracker)
@@ -214,8 +194,7 @@
        (alter ref-tracker assoc :creation next-creation)
        new-reference))))
 
-(defn #^{:rebind true :dynamic true}
-  handle-connection [{:keys [handlers] :as node} connection other-node]
+(defn handle-connection [{:keys [handlers] :as node} connection other-node]
   (let [reader (spawn node (io/reader node connection handlers other-node))
         writer (spawn node (io/writer connection other-node))]
     (register node (util/reader-name other-node) reader)
