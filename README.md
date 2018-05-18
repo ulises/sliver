@@ -4,6 +4,8 @@
 
 A Clojure library that simulates an Erlang node.
 
+NOTE: for the time being it seems that sliver only works with OTP 18 (haven't investigated OTP 19, and 20 definitely doesn't work).
+
 ## Include it
 
 Add `[sliver "0.0.2-SNAPSHOT"]` if you're working with Leiningen. Alternatively, add
@@ -82,7 +84,7 @@ the people who wrote `Pulsar/Quasar`):
 ````clojure
     your-spiffy-new-node.core> (last (for [n (range 100000)] (p/spawn foo-node #(+ 1 1))))
     #borges.type.Pid{:node foo@127.0.0.1, :pid 213433, :serial 1, :creation 0}
-    your-spiffy-new-node.core> 
+    your-spiffy-new-node.core>
 ````
 
 Granted, these processes did nothing much, but try starting 100k threads on a laptop and see how well it fares.
@@ -105,7 +107,7 @@ Let's send a message to a local unregistered processes:
     your-spiffy-new-node.core> (p/! foo-node pid1 'ohai)
     nil
     ohai
-    your-spiffy-new-node.core> 
+    your-spiffy-new-node.core>
 ````
 
 The code above:
@@ -128,7 +130,7 @@ Let's try the same thing, but with registered processes:
     your-spiffy-new-node.core> (p/! foo-node 'a-process 'ohai)
     nil
     ohai
-    your-spiffy-new-node.core> 
+    your-spiffy-new-node.core>
 ````
 
 The code above is identical to the first example with the exception that the
@@ -153,7 +155,7 @@ Start an erlang node:
     Erlang/OTP 18 [erts-7.1] [source] [64-bit] [smp:4:4] [async-threads:10] [hipe] [kernel-poll:false] [dtrace]
 
     Eshell V7.1  (abort with ^G)
-    (bar@127.0.0.1)1> 
+    (bar@127.0.0.1)1>
 ````
 
 Now connect sliver to it:
@@ -170,7 +172,7 @@ Now connect sliver to it:
     2015-Nov-16 21:28:26 +0000 salad-fingers DEBUG [sliver.node] - Registering  #borges.type.Pid{:node foo@127.0.0.1, :pid 3, :serial 0, :creation 0}  as  bar-writer
     2015-Nov-16 21:28:26 +0000 salad-fingers DEBUG [sliver.node] - foo: Writer for bar
     #sliver.node.Node{:node-name "foo", :host "127.0.0.1", :cookie "monster", :handlers [#<handler$handle_messages sliver.handler$handle_messages@3646bfed>], :state #<Atom@5ee27c71: {:shutdown-notify #{_dead-processes-reaper bar-writer}}>, :pid-tracker #<Ref@23386cb9: {:creation 0, :serial 0, :pid 4}>, :ref-tracker #<Ref@4659de48: {:creation 0, :id [0 1 1]}>, :actor-tracker #<Ref@6dddba95: {#borges.type.Pid{:node foo@127.0.0.1, :pid 3, :serial 0, :creation 0} #<ActorRef ActorRef@5a56124c{PulsarActor@ac90383[owner: fiber-10000004]}>, #borges.type.Pid{:node foo@127.0.0.1, :pid 2, :serial 0, :creation 0} #<ActorRef ActorRef@48cb69e9{PulsarActor@3784b8bc[owner: fiber-10000003]}>, #borges.type.Pid{:node foo@127.0.0.1, :pid 0, :serial 0, :creation 0} #<ActorRef ActorRef@22966555{PulsarActor@3fd6c130[owner: fiber-10000001]}>}>, :reverse-actor-tracker #<Ref@7804c48c: {#<ActorRef ActorRef@5a56124c{PulsarActor@ac90383[owner: fiber-10000004]}> #borges.type.Pid{:node foo@127.0.0.1, :pid 3, :serial 0, :creation 0}, #<ActorRef ActorRef@48cb69e9{PulsarActor@3784b8bc[owner: fiber-10000003]}> #borges.type.Pid{:node foo@127.0.0.1, :pid 2, :serial 0, :creation 0}, #<ActorRef ActorRef@22966555{PulsarActor@3fd6c130[owner: fiber-10000001]}> #borges.type.Pid{:node foo@127.0.0.1, :pid 0, :serial 0, :creation 0}}>, :actor-registry #<Atom@2c25570e: {bar-writer #borges.type.Pid{:node foo@127.0.0.1, :pid 3, :serial 0, :creation 0}, bar-reader #borges.type.Pid{:node foo@127.0.0.1, :pid 2, :serial 0, :creation 0}, _dead-processes-reaper #borges.type.Pid{:node foo@127.0.0.1, :pid 0, :serial 0, :creation 0}}>}
-    your-spiffy-new-node.core> 
+    your-spiffy-new-node.core>
 ````
 
 Oh dear! Yes. Quite a few `DEBUG` messages. I hope you can forgive me.
@@ -221,7 +223,7 @@ Check that the message actually arrived:
     (bar@127.0.0.1)2> flush().
     Shell got hai
     ok
-    (bar@127.0.0.1)3> 
+    (bar@127.0.0.1)3>
 ````
 
 Great!
@@ -270,7 +272,7 @@ together with its `pid`:
     2015-Nov-16 23:55:36 +0000 salad-fingers DEBUG [sliver.protocol] - SEND-MESSAGE: Sent 50 bytes
 ````
 
-Now we check back in the `erlang` shell that the `sliver` process has sent the 
+Now we check back in the `erlang` shell that the `sliver` process has sent the
 reply across:
 
 ```erlang
