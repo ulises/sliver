@@ -17,14 +17,18 @@
   :scm {:name "git"
         :url "https://github.com/ulises/sliver"}
 
-  :dependencies [[org.clojure/clojure "1.7.0"]
+  :dependencies [[org.clojure/clojure "1.8.0"]
                  [bytebuffer "0.2.0"]
                  [com.taoensso/timbre "3.3.1"]
                  [borges "0.1.6"]
+                 ;;[co.paralleluniverse/quasar-core "0.7.4"]
                  [co.paralleluniverse/pulsar "0.7.4"]]
 
-  :java-agents [[co.paralleluniverse/quasar-core "0.7.4"]]
-  :jvm-opts ["-Dco.paralleluniverse.pulsar.instrument.auto=all"]
+  :java-agents [[co.paralleluniverse/quasar-core "0.7.4"
+                 :classifier "jdk8"
+                 :options "m"]]
+  :jvm-opts ["-Djava.awt.headless=true"
+             "-Dco.paralleluniverse.pulsar.instrument.auto=all"]
 
   :global-vars {*warn-on-reflection* true}
   :aot :all)
